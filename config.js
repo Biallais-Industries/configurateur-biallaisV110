@@ -1,13 +1,35 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const APP_VERSION = "v5.13 (Multi-Mortiers)"; 
+    const APP_VERSION = "v5.17 (CCTP Resistances P)"; 
     const versionDiv = document.getElementById('app-version');
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
     // =======================================================================
-    // 1. CONFIGURATION DES PRIX (TARIF 2026)
+    // 1. CONFIGURATION DES PRIX & LIBELLÉS
     // =======================================================================
     
+    const COLOR_LABELS = {
+        'blanc': 'Blanc',
+        'tonpierre': 'Ton Pierre',
+        'jaune': 'Jaune',
+        'saumon': 'Saumon',
+        'rouge': 'Rouge',
+        'terredesienne': 'Terre de Sienne',
+        'orange': 'Orange',
+        'corail': 'Corail',
+        'tomette': 'Tomette',
+        'carmin': 'Carmin',
+        'liedevin': 'Lie de Vin',
+        'chocolat': 'Chocolat',
+        'brun': 'Brun',
+        'grisclair': 'Gris Clair',
+        'grisfonce': 'Gris Foncé',
+        'anthracite': 'Anthracite',
+        'superblanc': 'Super Blanc',
+        'bleu': 'Bleu',
+        'vert': 'Vert'
+    };
+
     const COULEURS_SPECIALES = ['superblanc', 'bleu', 'vert']; 
 
     const PRIX_SAC_MORTIER = {
@@ -54,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const selectAppareillage = document.getElementById('select-appareillage');
     const selectJoint = document.getElementById('select-joint');
+    const selectGrainJoint = document.getElementById('select-grain-joint');
     const selectTypeJoint = document.getElementById('select-type-joint'); 
     
     const sliderJointH = document.getElementById('slider-joint-h');
@@ -142,30 +165,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // 12. GÉNÉRATEUR DE CCTP
+    // 12. GÉNÉRATEUR DE CCTP (MIS À JOUR AVEC RESISTANCES P)
     // =========================================================================
 
     const CCTP_TEMPLATES = {
         'MASONRY_HEADER': 
             "MAÇONNERIES DE BLOCS ARCHITECTONIQUES DESTINÉS À RESTER APPARENTS\n" +
-            "Conformément au DTU 20.1 et à la norme NF P 14-102 (Blocs en Béton)\n\n" +
+            "Conformément au DTU 20.1 et à la norme NF EN 771-3 + A1/CN:2017 (Blocs en Béton)\n\n" +
             "1. MATÉRIAUX\n" +
             "Blocs de construction décoratifs, garantis sans efflorescence de chaux, type BIACOLOR de chez BIALLAIS INDUSTRIES ou équivalent technique approuvé.\n" +
             "Certification : NF et CE 2+.\n" +
-            "Classement : P120 (12 MPa) pour blocs pleins/perforés ou P60/P80 pour blocs creux.\n\n" +
+            "Classement Résistance : {RESISTANCE}\n\n" +
             "1.1. Caractéristiques du Bloc sélectionné :\n" +
             "- Format : {PRODUCT_NAME}\n" +
             "- Dimensions de fabrication : {DIMS_FAB}\n" +
-            "- Dimensions de coordination : {DIMS_COORD}\n" +
+            "- Taille du Joint Horizontal : {JOINT_H} mm\n" +
+            "- Taille du Joint Vertical : {JOINT_V} mm\n" +
             "- Finition : {FINISH_DESC}\n" +
             "- Teinte : {COLOR_DESC}\n\n" +
             "1.2. Mortier de pose :\n" +
             "Le mortier sera un mortier industriel prêt à gâcher, spécifique, hydrofugé dans la masse et garanti sans efflorescence (type BIAMORTIER M10).\n" +
-            "Dosage en liant > 350 kg/m³ de sable sec. Granulométrie 0-3 mm.\n" +
+            "Granulométrie du joint : {JOINT_GRAIN}.\n" +
             "Teinte du joint : {JOINT_COLOR}.\n\n" +
             "2. MISE EN ŒUVRE (DTU 20.1)\n" +
             "- Les murs étant destinés à rester apparents, il ne devra y avoir aucune discontinuité entre les joints verticaux et horizontaux.\n" +
-            "- Épaisseur des joints : {JOINT_SIZE} mm environ.\n" +
             "- Le profil des joints devra être réalisé au fer (joint plat ou demi-rond) pour éviter la stagnation des eaux.\n" +
             "- Protection : En cours de travaux, les murs doivent être protégés des intempéries (bâchage) pour éviter les coulures et l'humidification excessive.\n" +
             "- Nettoyage : Les éventuelles bavures de mortier doivent être nettoyées immédiatement à l'éponge et à l'eau claire.\n" +
@@ -184,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "1.2. Système de collage :\n" +
             "- Colle : Mortier-colle performant (C2S1) adapté à l'extérieur (type ParexLanko ou équivalent).\n" +
             "- Jointoiement : Mortier de jointoiement hydrofugé spécifique (type BIAJOINT).\n" +
+            "Granulométrie du joint : {JOINT_GRAIN}.\n" +
             "- Teinte du joint : {JOINT_COLOR}.\n\n" +
             "2. MISE EN ŒUVRE\n" +
             "- Support : Le support doit être propre, sain, plan et sec.\n" +
@@ -200,64 +224,85 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let baseText = "";
         let dimsFab = "";
-        let dimsCoord = "";
         let productName = "";
+        let resistanceClass = "";
 
+        // DETERMINATION RESISTANCE ET NOM
         switch(productId) {
             case 'p1': // Bloc 19
                 productName = "Bloc 19x19x39";
                 dimsFab = "190 x 190 x 390 mm";
-                dimsCoord = "200 x 200 x 400 mm";
+                // 19x19x39 : P60 (Lisse) / P80 (Roc)
+                if (finishes.includes('roc') && !finishes.includes('lisse')) resistanceClass = "P80 (Bloc Roc)";
+                else if (finishes.includes('lisse') && !finishes.includes('roc')) resistanceClass = "P60 (Bloc Creux)";
+                else resistanceClass = "P60 (Lisse) / P80 (Roc)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p2': // Bloc 15
                 productName = "Bloc 15x19x39";
                 dimsFab = "150 x 190 x 390 mm";
-                dimsCoord = "150 x 200 x 400 mm";
+                // 15x19x39 : P80 partout
+                resistanceClass = "P80";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p3': // Bloc 9
                 productName = "Bloc 9x19x39";
                 dimsFab = "90 x 190 x 390 mm";
-                dimsCoord = "100 x 200 x 400 mm";
+                // 9x19x39 : P80 partout
+                resistanceClass = "P80"; 
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p4': // Maxi 6x22x22
                 productName = "Maxibrique 6x22x22";
                 dimsFab = "60 x 220 x 220 mm";
-                dimsCoord = "Variable selon joint (Standard ~10mm)";
+                // 6x22x22 : P60
+                resistanceClass = "P60";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-            case 'p5': // Brique P5
-                productName = "Brique 6x10,5x22 (P5)";
+
+            case 'p5': // Brique P5 (6x10.5x22)
+                productName = "Brique 6x10,5x22"; 
                 dimsFab = "60 x 105 x 220 mm";
-                dimsCoord = "70 x 115 x 230 mm";
+                // 6x10.5x22 : P250
+                resistanceClass = "P250";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p6': // Plaquette
                 productName = "Plaquette 6x2x22";
                 dimsFab = "60 x 20 x 220 mm";
-                dimsCoord = "N/A (Collé)";
+                resistanceClass = "N/A (Parement Collé)";
                 baseText = CCTP_TEMPLATES.GLUED_HEADER;
                 break;
-            case 'p7': // Maxi 19
-                productName = "Maxibrique 19x09x24 (P7)";
+
+            case 'p7': // Maxi 19 (9x19x24)
+                productName = "Maxibrique 19x09x24"; 
                 dimsFab = "190 x 90 x 240 mm";
-                dimsCoord = "200 x 100 x 250 mm";
+                // 19x9x24 : P60 (Lisse) / P80 (Roc)
+                if (finishes.includes('roc') && !finishes.includes('lisse')) resistanceClass = "P80 (Roc)";
+                else if (finishes.includes('lisse') && !finishes.includes('roc')) resistanceClass = "P60 (Lisse)";
+                else resistanceClass = "P60 (Lisse) / P80 (Roc)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p8': // Allongée
-                productName = "Brique Allongée 6x11x44 (P8)";
+                productName = "Brique Allongée 6x11x44"; 
                 dimsFab = "60 x 110 x 440 mm";
-                dimsCoord = "70 x 120 x 450 mm";
+                // 6x44 : P250
+                resistanceClass = "P250";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
+
             case 'p9': // Plaq Longue
                 productName = "Plaquette Allongée 6x1,8x44";
                 dimsFab = "60 x 18 x 440 mm";
-                dimsCoord = "N/A (Collé)";
+                resistanceClass = "N/A (Parement Collé)";
                 baseText = CCTP_TEMPLATES.GLUED_HEADER;
                 break;
+
             default:
                 productName = "Produit Biallais";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
@@ -268,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
             finishDesc = "Panachage LISSE et ROC (Proportion à définir sur calepinage)";
         }
 
-        let colorDesc = colors.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(" + ");
+        let colorDesc = colors.map(c => COLOR_LABELS[c] || c).join(" + ");
         if (colors.length > 1) {
             colorDesc = `Mélange Multicolore : ${colorDesc}`;
         }
@@ -276,16 +321,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const jointH = document.getElementById('slider-joint-h').value;
         const jointV = document.getElementById('slider-joint-v').value;
         const selectJoint = document.getElementById('select-joint');
+        const selectGrainJoint = document.getElementById('select-grain-joint');
         const jointColorName = selectJoint.options[selectJoint.selectedIndex].text;
+        
+        let grainText = "Grain Standard 0/3 mm"; // Valeur par défaut
+        if (selectGrainJoint) {
+            grainText = selectGrainJoint.value === 'fin' ? "Grain Fin 0/1 mm" : "Grain Standard 0/3 mm";
+        }
 
         let finalCCTP = baseText
             .replace('{PRODUCT_NAME}', productName)
             .replace('{DIMS_FAB}', dimsFab)
-            .replace('{DIMS_COORD}', dimsCoord)
+            .replace('{RESISTANCE}', resistanceClass)
             .replace('{FINISH_DESC}', finishDesc)
             .replace('{COLOR_DESC}', colorDesc)
-            .replace('{JOINT_SIZE}', `${jointH}mm (H) x ${jointV}mm (V)`)
-            .replace('{JOINT_COLOR}', jointColorName);
+            .replace('{JOINT_H}', jointH)
+            .replace('{JOINT_V}', jointV)
+            .replace('{JOINT_COLOR}', jointColorName)
+            .replace('{JOINT_GRAIN}', grainText);
 
         doc.setFontSize(16);
         doc.setTextColor(40, 167, 69);
@@ -341,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const inputsToWatch = [
-        selectAppareillage, selectJoint, selectTypeJoint, 
+        selectAppareillage, selectJoint, selectGrainJoint, selectTypeJoint, 
         sliderJointH, sliderJointV, sliderRoc, selectScene,
         selectReliefType, sliderReliefPercent,
         selectReliefColor, selectReliefFinish,
@@ -657,7 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tag.className = 'rule-tag';
             const finishLabel = (rule.finish === 'roc') ? 'Roc' : 'Lisse';
             let text = `L${rule.row} : ${finishLabel}`;
-            if (rule.color) { const cLabel = colorLabels[rule.color] || rule.color; text += ` (${cLabel})`; }
+            if (rule.color) { const cLabel = COLOR_LABELS[rule.color] || rule.color; text += ` (${cLabel})`; }
             tag.innerHTML = `<span>${text}</span> <span class="remove-tag" data-index="${index}" title="Supprimer" style="cursor:pointer;color:red;font-weight:bold;">&times;</span>`;
             rulesContainer.appendChild(tag);
         });
@@ -864,6 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(selectAppareillage) selectAppareillage.value = 'demi-brique';
             if(selectJoint) selectJoint.value = 'joint_grisclair.png';
             if(selectTypeJoint) selectTypeJoint.value = 'plat';
+            if(selectGrainJoint) selectGrainJoint.value = 'fin'; // RESET GRAIN (FIN par défaut)
             if(sliderJointH) { sliderJointH.value = 10; updateUIValues(); }
             if(sliderJointV) { sliderJointV.value = 10; updateUIValues(); }
             if(sliderRoc) { sliderRoc.value = 25; updateUIValues(); }
@@ -922,6 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const appareillageChoisi = selectAppareillage.value;
             const nomFichierJointGlobal = selectJoint ? selectJoint.value : 'joint_grisclair.png';
             const typeJoint = selectTypeJoint ? selectTypeJoint.value : 'plat'; 
+            const grainJoint = selectGrainJoint ? selectGrainJoint.value : 'fin'; // RECUPERATION GRAIN
             const largeurJointH = sliderJointH ? parseInt(sliderJointH.value) : 10; 
             const largeurJointV = sliderJointV ? parseInt(sliderJointV.value) : 10; 
             const pourcentageRoc = parseInt(sliderRoc.value);
@@ -952,11 +1007,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let configProduit = PRODUITS_CONFIG[produitChoisi]; if (!configProduit) configProduit = PRODUITS_CONFIG['p1'];
 
-            const listeACharger = [nomFichierJointGlobal];
+            // MODIFICATION CHARGEMENT IMAGES JOINT
+            const getJointName = (baseName, grain) => {
+                // Si grain fin -> nom de base (ex: joint_gris.png)
+                // Si grain standard -> nom + _1 (ex: joint_gris_1.png)
+                return (grain === 'fin') ? baseName : baseName.replace('.png', '_1.png');
+            };
+
+            const actualGlobalJoint = getJointName(nomFichierJointGlobal, grainJoint);
+            const listeACharger = [actualGlobalJoint];
             
-            // MODIFICATION: On ne charge les textures que si des couleurs sont choisies
             if (couleursChoisies.length > 0) {
-                Object.values(lignesJointMap).forEach(j => { if (j && !listeACharger.includes(j)) listeACharger.push(j); });
+                Object.values(lignesJointMap).forEach(j => { 
+                    const actualJ = getJointName(j, grainJoint);
+                    if (j && !listeACharger.includes(actualJ)) listeACharger.push(actualJ); 
+                });
 
                 couleursChoisies.forEach(couleur => {
                     finitionsChoisies.forEach(finition => {
@@ -1015,7 +1080,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     try {
-                        const imgGlobalJoint = jointsLibrary[nomFichierJointGlobal];
+                        const imgGlobalJoint = jointsLibrary[actualGlobalJoint];
                         dessinerMur(
                             imagesMap, couleursChoisies, finitionsChoisies,
                             imgGlobalJoint, jointsLibrary, 
@@ -1023,6 +1088,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             pourcentageRoc, colorWeights,
                             lignesRocMap, lignesLisseMap, lignesJointMap,
                             largeurJointH, largeurJointV, typeJoint,
+                            grainJoint, // PASSE LE GRAIN
                             reliefType, reliefPercent, 
                             reliefOutColor, reliefOutFinish,
                             reliefInColor, reliefInFinish 
@@ -1037,12 +1103,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 50);
     }
 
-    function dessinerMur(imagesMap, couleurs, finitions, imgGlobalJoint, jointsLibrary, appareillage, configProduit, pourcentageRoc, colorWeights, lignesRocMap, lignesLisseMap, lignesJointMap, largeurJointH, largeurJointV, typeJoint, reliefType, reliefPercent, reliefOutColor, reliefOutFinish, reliefInColor, reliefInFinish) {
+    function dessinerMur(imagesMap, couleurs, finitions, imgGlobalJoint, jointsLibrary, appareillage, configProduit, pourcentageRoc, colorWeights, lignesRocMap, lignesLisseMap, lignesJointMap, largeurJointH, largeurJointV, typeJoint, grainJoint, reliefType, reliefPercent, reliefOutColor, reliefOutFinish, reliefInColor, reliefInFinish) {
         
         // MODIFICATION: DÉTECTION MODE ESQUISSE
         const modeEsquisse = (couleurs.length === 0);
         
         let statsReal = {};
+
+        // FACTEUR D'ECHELLE POUR LE GRAIN (VISUEL)
+        // Fin (0/1) = 0.8 (Légèrement resserré)
+        // Standard (0/3) = 1.2 (Légèrement agrandi pour voir le grain)
+        const scaleModifier = (grainJoint === 'fin') ? 0.5 : 0.1;
 
         let moduleW;
         if (appareillage === 'moucharabieh') moduleW = configProduit.dims.largeur * (4/3);
@@ -1087,7 +1158,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (imgGlobalJoint) {
                 patternMortierGlobal = ctx.createPattern(imgGlobalJoint, 'repeat');
-                let scale = (TAILLE_REELLE_TEXTURE_JOINT_MM * ECHELLE) / imgGlobalJoint.width;
+                // APPLICATION ECHELLE GRAIN + TEXTURE
+                let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgGlobalJoint.width;
                 patternMortierGlobal.setTransform(new DOMMatrix().scale(scale));
             }
             // --- CORRECTION MOUCHARABIEH 3D ---
@@ -1150,14 +1222,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let currentPatternV = null;
             if(!modeEsquisse) {
-                currentPatternV = imgGlobalJoint ? ctx.createPattern(imgGlobalJoint, 'repeat') : "#ccc"; // Simplifié ici
-                const forcedJointName = lignesJointMap[numeroRang + 1];
-                if (forcedJointName && jointsLibrary[forcedJointName]) {
-                    const imgSpecific = jointsLibrary[forcedJointName];
-                    const pSpecific = ctx.createPattern(imgSpecific, 'repeat');
-                    let scale = (TAILLE_REELLE_TEXTURE_JOINT_MM * ECHELLE) / imgSpecific.width;
-                    pSpecific.setTransform(new DOMMatrix().scale(scale));
-                    currentPatternV = pSpecific;
+                // PATTERN GLOBAL
+                if (imgGlobalJoint) {
+                    currentPatternV = ctx.createPattern(imgGlobalJoint, 'repeat');
+                    let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgGlobalJoint.width;
+                    currentPatternV.setTransform(new DOMMatrix().scale(scale));
+                } else {
+                    currentPatternV = "#ccc";
+                }
+
+                // PATTERN SPECIFIQUE
+                const forcedJointNameBase = lignesJointMap[numeroRang + 1];
+                if (forcedJointNameBase) {
+                    // Calcul du nom réel avec suffixe
+                    const forcedJointNameActual = (grainJoint === 'fin') ? forcedJointNameBase : forcedJointNameBase.replace('.png', '_1.png');
+                    
+                    if (jointsLibrary[forcedJointNameActual]) {
+                        const imgSpecific = jointsLibrary[forcedJointNameActual];
+                        const pSpecific = ctx.createPattern(imgSpecific, 'repeat');
+                        let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgSpecific.width;
+                        pSpecific.setTransform(new DOMMatrix().scale(scale));
+                        currentPatternV = pSpecific;
+                    }
                 }
             }
 
@@ -1475,7 +1561,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const colorCode = parts[0];
                     const finishCode = parts[1]; // 'roc' ou 'lisse'
                     
-                    const colorName = colorCode.charAt(0).toUpperCase() + colorCode.slice(1);
+                    const colorName = COLOR_LABELS[colorCode] || colorCode.charAt(0).toUpperCase() + colorCode.slice(1);
                     const finishName = (finishCode === 'roc') ? 'Roc' : 'Lisse';
                     const displayName = `<span style="font-weight:bold;">${colorName}</span> <small>(${finishName})</small>`;
                     const bgCol = FALLBACK_COLORS[colorCode] || '#cccccc'; 

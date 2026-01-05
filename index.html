@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurateur Biallais - v5.11 CCTP Auto</title>
+    <title>Configurateur Biallais - v5.15 Textures Reelles</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="manifest" href="manifest.json">
@@ -101,6 +101,10 @@
                 </div>
                 
                 <div id="wrapper-repartition" style="display:none; margin-top: 15px; background: #f1f3f5; padding: 10px; border-radius: 6px;">
+                    <p style="font-size:0.85rem; color:#555; margin:0 0 10px 0; padding-bottom:10px; border-bottom:1px solid #ddd; line-height:1.4;">
+                        ℹ️ <strong>Mode Mixte :</strong> Veuillez d'abord définir la proportion globale souhaitée (Lisse/Roc) à l'aide du curseur ci-dessous. La répartition sera générée aléatoirement.<br>
+                        <span style="font-size:0.8rem; color:#777; margin-top:4px; display:block;">Une fois cette base établie, vous pourrez si nécessaire "Forcer une ligne" spécifique via l'outil situé plus bas.</span>
+                    </p>
                     <label class="sub-label">Répartition du "Roc" : <span id="slider-roc-valeur">25%</span></label>
                     <div class="slider-container"><input type="range" id="slider-roc" min="0" max="100" value="25" step="5"></div>
                 </div>
@@ -167,20 +171,32 @@
             </div>
 
             <div class="config-section">
-                <label class="section-title">4. Couleur du Joint Global</label>
-                <select id="select-joint" class="form-control">
-                    <option value="joint_grisclair.png">Gris Clair (Standard)</option>
-                    <option value="joint_blanc.png">Blanc</option>
-                    <option value="joint_superblanc.png">Super Blanc</option>
-                    <option value="joint_tonpierre.png">Ton Pierre</option>
-                    <option value="joint_saumon.png">Saumon</option>
-                    <option value="joint_rouge.png">Rouge</option>
-                    <option value="joint_jaune.png">Jaune</option>
-                    <option value="joint_brun.png">Brun</option>
-                    <option value="joint_chocolat.png">Chocolat</option>
-                    <option value="joint_grisfonce.png">Gris Foncé</option>
-                    <option value="joint_anthracite.png">Anthracite</option>
-                </select>
+                <label class="section-title">4. Couleur et Grain du Joint</label>
+                <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:200px;">
+                        <label class="sub-label" for="select-joint">Couleur :</label>
+                        <select id="select-joint" class="form-control">
+                            <option value="joint_grisclair.png">Gris Clair (Standard)</option>
+                            <option value="joint_blanc.png">Blanc</option>
+                            <option value="joint_superblanc.png">Super Blanc</option>
+                            <option value="joint_tonpierre.png">Ton Pierre</option>
+                            <option value="joint_saumon.png">Saumon</option>
+                            <option value="joint_rouge.png">Rouge</option>
+                            <option value="joint_jaune.png">Jaune</option>
+                            <option value="joint_brun.png">Brun</option>
+                            <option value="joint_chocolat.png">Chocolat</option>
+                            <option value="joint_grisfonce.png">Gris Foncé</option>
+                            <option value="joint_anthracite.png">Anthracite</option>
+                        </select>
+                    </div>
+                    <div style="flex:1; min-width:200px;">
+                        <label class="sub-label" for="select-grain-joint">Grain (Granulométrie) :</label>
+                        <select id="select-grain-joint" class="form-control">
+                            <option value="fin" selected>Grain Fin (0/1 mm)</option>
+                            <option value="standard">Grain Standard (0/3 mm)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <details class="advanced-settings-container">
