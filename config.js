@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const APP_VERSION = "v5.17 (CCTP Resistances P)"; 
+    const APP_VERSION = "v5.28 (CCTP Détaillé Produit par Produit)"; 
     const versionDiv = document.getElementById('app-version');
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
@@ -106,7 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectReliefInColor = document.getElementById('select-relief-in-color');
     const selectReliefInFinish = document.getElementById('select-relief-in-finish');
 
-    // --- RÈGLES ---
+    // --- RÈGLES (Bloc 3 : Briques & Joints Verticaux) ---
+    // Note : Cela nécessite que l'input 'new-line-joint' existe dans votre HTML
     const btnAddRule = document.getElementById('btn-add-rule');
     const btnResetRules = document.getElementById('btn-reset-rules');
     const inputRow = document.getElementById('new-line-number');
@@ -115,6 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputJoint = document.getElementById('new-line-joint'); 
     const rulesContainer = document.getElementById('active-rules-container');
     let rulesData = []; 
+
+    // --- RÈGLES (Bloc 4 : Joints Horizontaux UNIQUEMENT) ---
+    const btnAddJointRule = document.getElementById('btn-add-joint-rule');
+    const inputJointRow = document.getElementById('joint-rule-row');
+    const selectJointRuleColor = document.getElementById('joint-rule-color');
+    const jointRulesContainer = document.getElementById('joint-rules-container');
+    let jointRulesData = []; 
 
     // --- EXPORT ---
     const btnExportJpg = document.getElementById('btnExportJpg');
@@ -165,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // 12. GÉNÉRATEUR DE CCTP (MIS À JOUR AVEC RESISTANCES P)
+    // 12. GÉNÉRATEUR DE CCTP
     // =========================================================================
 
     const CCTP_TEMPLATES = {
@@ -181,8 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "- Dimensions de fabrication : {DIMS_FAB}\n" +
             "- Taille du Joint Horizontal : {JOINT_H} mm\n" +
             "- Taille du Joint Vertical : {JOINT_V} mm\n" +
-            "- Finition : {FINISH_DESC}\n" +
-            "- Teinte : {COLOR_DESC}\n\n" +
+            "- Déclinaison des produits (Teintes & Finitions) :{PRODUCT_DETAILS}\n\n" +
             "1.2. Mortier de pose :\n" +
             "Le mortier sera un mortier industriel prêt à gâcher, spécifique, hydrofugé dans la masse et garanti sans efflorescence (type BIAMORTIER M10).\n" +
             "Granulométrie du joint : {JOINT_GRAIN}.\n" +
@@ -202,8 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "1.1. Caractéristiques :\n" +
             "- Format : {PRODUCT_NAME}\n" +
             "- Épaisseur : 20 mm\n" +
-            "- Finition : {FINISH_DESC}\n" +
-            "- Teinte : {COLOR_DESC}\n\n" +
+            "- Déclinaison des produits (Teintes & Finitions) :{PRODUCT_DETAILS}\n\n" +
             "1.2. Système de collage :\n" +
             "- Colle : Mortier-colle performant (C2S1) adapté à l'extérieur (type ParexLanko ou équivalent).\n" +
             "- Jointoiement : Mortier de jointoiement hydrofugé spécifique (type BIAJOINT).\n" +
@@ -220,111 +226,154 @@ document.addEventListener('DOMContentLoaded', () => {
         const doc = new window.jspdf.jsPDF();
         const productId = getSingleValue(containerProduit);
         const finishes = getMultiValues(containerFinition);
-        const colors = getMultiValues(containerCouleur);
         
+        // --- 1. CONSTRUCTION DE LA LISTE DÉTAILLÉE DES PRODUITS (Coloris + Finition) ---
+        // On se base sur 'lastStatsReal' qui contient les quantités exactes affichées
+        let productDetailsText = "";
+        
+        // Si le calcul a déjà été fait (ce qui est le cas si on voit un aperçu), on utilise les stats précises
+        if (lastStatsReal && Object.keys(lastStatsReal).length > 0) {
+            const sortedEntries = Object.entries(lastStatsReal).sort((a,b) => b[1] - a[1]);
+            sortedEntries.forEach(([key, count]) => {
+                // key est sous la forme "codeCouleur|finishCode"
+                const parts = key.split('|');
+                const colorCode = parts[0];
+                const finishCode = parts[1];
+                
+                const colorLabel = COLOR_LABELS[colorCode] || colorCode;
+                const finishLabel = (finishCode === 'roc') ? "Aspect Roc" : "Aspect Lisse";
+                
+                productDetailsText += `\n   - ${colorLabel} (${finishLabel})`;
+            });
+        } 
+        else {
+            // Fallback si jamais 'lastStatsReal' est vide (ex: clic immédiat sans générer)
+            // On fait un produit cartésien simple des sélections
+            const colors = getMultiValues(containerCouleur);
+            colors.forEach(c => {
+                finishes.forEach(f => {
+                    const colorLabel = COLOR_LABELS[c] || c;
+                    const finishLabel = (f === 'roc') ? "Aspect Roc" : "Aspect Lisse";
+                    productDetailsText += `\n   - ${colorLabel} (${finishLabel})`;
+                });
+            });
+            // On ajoute aussi les règles forcées si présentes
+            rulesData.forEach(r => {
+                 const c = r.color || "Couleur standard";
+                 const cLabel = COLOR_LABELS[c] || c;
+                 const fLabel = (r.finish === 'roc') ? "Aspect Roc" : "Aspect Lisse";
+                 productDetailsText += `\n   - ${cLabel} (${fLabel}) [Ligne forcée]`;
+            });
+        }
+        
+        // --- 2. AGGRÉGATION DES JOINTS (Global + Forcés) ---
+        const selectJoint = document.getElementById('select-joint');
+        const globalJointTxt = selectJoint.options[selectJoint.selectedIndex].text;
+        
+        let allJointsSet = new Set();
+        allJointsSet.add(globalJointTxt);
+
+        // Fonction pour retrouver le nom lisible d'un joint
+        const getJointLabel = (val) => {
+             if(!val) return "";
+             const opt = selectJoint.querySelector(`option[value="${val}"]`);
+             if(opt) return opt.text;
+             return val.replace('joint_', '').replace('.png', '').replace('_', ' '); 
+        };
+
+        // Joints des règles Verticales (Bloc 3)
+        rulesData.forEach(r => {
+            if(r.joint && r.joint !== "") {
+                allJointsSet.add(getJointLabel(r.joint) + " (Ponctuel Vertical)");
+            }
+        });
+
+        // Joints des règles Horizontales (Bloc 4)
+        jointRulesData.forEach(r => {
+            if (r.label) {
+                allJointsSet.add(r.label + " (Ponctuel Horizontal)");
+            } else if (r.color) {
+                allJointsSet.add(getJointLabel(r.color) + " (Ponctuel Horizontal)");
+            }
+        });
+
+        const finalJointString = Array.from(allJointsSet).join(" + ");
+        
+        // --- GÉNÉRATION TEXTE ---
         let baseText = "";
         let dimsFab = "";
         let productName = "";
-        let resistanceClass = "";
+        let resistanceClass = "P60/P80 (Selon Finition)";
 
-        // DETERMINATION RESISTANCE ET NOM
         switch(productId) {
             case 'p1': // Bloc 19
                 productName = "Bloc 19x19x39";
                 dimsFab = "190 x 190 x 390 mm";
-                // 19x19x39 : P60 (Lisse) / P80 (Roc)
                 if (finishes.includes('roc') && !finishes.includes('lisse')) resistanceClass = "P80 (Bloc Roc)";
                 else if (finishes.includes('lisse') && !finishes.includes('roc')) resistanceClass = "P60 (Bloc Creux)";
                 else resistanceClass = "P60 (Lisse) / P80 (Roc)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p2': // Bloc 15
                 productName = "Bloc 15x19x39";
                 dimsFab = "150 x 190 x 390 mm";
-                // 15x19x39 : P80 partout
-                resistanceClass = "P80";
+                resistanceClass = "P80 (Bloc Creux)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p3': // Bloc 9
                 productName = "Bloc 9x19x39";
                 dimsFab = "90 x 190 x 390 mm";
-                // 9x19x39 : P80 partout
-                resistanceClass = "P80"; 
+                resistanceClass = "P250 (Bloc Plein)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p4': // Maxi 6x22x22
                 productName = "Maxibrique 6x22x22";
                 dimsFab = "60 x 220 x 220 mm";
-                // 6x22x22 : P60
-                resistanceClass = "P60";
+                resistanceClass = "P250 (Brique Pleine)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
-            case 'p5': // Brique P5 (6x10.5x22)
+            case 'p5': // Brique P5
                 productName = "Brique 6x10,5x22"; 
                 dimsFab = "60 x 105 x 220 mm";
-                // 6x10.5x22 : P250
-                resistanceClass = "P250";
+                resistanceClass = "P250 (Brique Pleine)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p6': // Plaquette
                 productName = "Plaquette 6x2x22";
                 dimsFab = "60 x 20 x 220 mm";
                 resistanceClass = "N/A (Parement Collé)";
                 baseText = CCTP_TEMPLATES.GLUED_HEADER;
                 break;
-
-            case 'p7': // Maxi 19 (9x19x24)
+            case 'p7': // Maxi 19
                 productName = "Maxibrique 19x09x24"; 
                 dimsFab = "190 x 90 x 240 mm";
-                // 19x9x24 : P60 (Lisse) / P80 (Roc)
                 if (finishes.includes('roc') && !finishes.includes('lisse')) resistanceClass = "P80 (Roc)";
                 else if (finishes.includes('lisse') && !finishes.includes('roc')) resistanceClass = "P60 (Lisse)";
                 else resistanceClass = "P60 (Lisse) / P80 (Roc)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p8': // Allongée
                 productName = "Brique Allongée 6x11x44"; 
                 dimsFab = "60 x 110 x 440 mm";
-                // 6x44 : P250
-                resistanceClass = "P250";
+                resistanceClass = "P250 (Brique Pleine)";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
                 break;
-
             case 'p9': // Plaq Longue
                 productName = "Plaquette Allongée 6x1,8x44";
                 dimsFab = "60 x 18 x 440 mm";
                 resistanceClass = "N/A (Parement Collé)";
                 baseText = CCTP_TEMPLATES.GLUED_HEADER;
                 break;
-
             default:
                 productName = "Produit Biallais";
                 baseText = CCTP_TEMPLATES.MASONRY_HEADER;
         }
 
-        let finishDesc = finishes.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(" + ");
-        if (finishes.includes('lisse') && finishes.includes('roc')) {
-            finishDesc = "Panachage LISSE et ROC (Proportion à définir sur calepinage)";
-        }
-
-        let colorDesc = colors.map(c => COLOR_LABELS[c] || c).join(" + ");
-        if (colors.length > 1) {
-            colorDesc = `Mélange Multicolore : ${colorDesc}`;
-        }
-
         const jointH = document.getElementById('slider-joint-h').value;
         const jointV = document.getElementById('slider-joint-v').value;
-        const selectJoint = document.getElementById('select-joint');
         const selectGrainJoint = document.getElementById('select-grain-joint');
-        const jointColorName = selectJoint.options[selectJoint.selectedIndex].text;
         
-        let grainText = "Grain Standard 0/3 mm"; // Valeur par défaut
+        let grainText = "Grain Standard 0/3 mm"; 
         if (selectGrainJoint) {
             grainText = selectGrainJoint.value === 'fin' ? "Grain Fin 0/1 mm" : "Grain Standard 0/3 mm";
         }
@@ -333,11 +382,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace('{PRODUCT_NAME}', productName)
             .replace('{DIMS_FAB}', dimsFab)
             .replace('{RESISTANCE}', resistanceClass)
-            .replace('{FINISH_DESC}', finishDesc)
-            .replace('{COLOR_DESC}', colorDesc)
+            .replace('{PRODUCT_DETAILS}', productDetailsText) // Insertion de la liste détaillée
             .replace('{JOINT_H}', jointH)
             .replace('{JOINT_V}', jointV)
-            .replace('{JOINT_COLOR}', jointColorName)
+            .replace('{JOINT_COLOR}', finalJointString) // Insertion de tous les joints
             .replace('{JOINT_GRAIN}', grainText);
 
         doc.setFontSize(16);
@@ -669,16 +717,34 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { sliderJointV.min = 1; }
     }
 
+    // --- LOGIQUE BLOC 3 : BRIQUES + JOINTS V ---
     if (btnAddRule) {
         btnAddRule.addEventListener('click', (e) => {
             e.preventDefault();
             const rawText = inputRow.value;
             const rowsToAdd = rawText.split(',').map(str => parseInt(str.trim())).filter(num => !isNaN(num) && num > 0);
             if (rowsToAdd.length === 0) { alert("Numéro de ligne invalide."); return; }
-            const finish = inputFinish.value; const color = inputColor.value; const joint = inputJoint ? inputJoint.value : ""; 
-            rowsToAdd.forEach(row => { rulesData = rulesData.filter(r => r.row !== row); rulesData.push({ row, finish, color, joint }); });
+            
+            let finish = inputFinish.value; 
+            const color = inputColor.value; 
+            const joint = inputJoint ? inputJoint.value : ""; 
+            
+            // --- RESTRICTION ROC SUR ROUGES ---
+            if (finish === 'roc' && NO_ROC_COLORS.includes(color)) {
+                alert("Aspect indisponible : veuillez vous rapprocher de Biallais Industries.");
+                finish = 'lisse'; 
+                inputFinish.value = 'lisse';
+            }
+            // ------------------------------------------------------
+            
+            rowsToAdd.forEach(row => { 
+                rulesData = rulesData.filter(r => r.row !== row); 
+                rulesData.push({ row, finish, color, joint }); 
+            });
             rulesData.sort((a, b) => a.row - b.row);
-            renderRules(); inputRow.value = ''; inputRow.focus(); triggerAutoUpdate(); 
+            renderRules(); 
+            inputRow.value = ''; 
+            triggerAutoUpdate(); 
         });
     }
 
@@ -691,11 +757,69 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const inputsLigneForcee = [inputRow, inputFinish, inputColor, inputJoint];
+    // --- LOGIQUE BLOC 4 : JOINTS HORIZONTAUX UNIQUEMENT ---
+    if (btnAddJointRule) {
+        btnAddJointRule.addEventListener('click', (e) => {
+            e.preventDefault();
+            const rawText = inputJointRow.value;
+            const rowsToAdd = rawText.split(',').map(str => parseInt(str.trim())).filter(num => !isNaN(num) && num > 0);
+            if (rowsToAdd.length === 0) { alert("Numéro de ligne invalide."); return; }
+            
+            const selectedJointValue = selectJointRuleColor.value; 
+            const selectedJointText = selectJointRuleColor.options[selectJointRuleColor.selectedIndex].text;
+            
+            rowsToAdd.forEach(row => {
+                // On retire s'il existe déjà une règle de joint pour cette ligne dans ce tableau spécifique
+                jointRulesData = jointRulesData.filter(r => r.row !== row);
+                // On ajoute la nouvelle
+                jointRulesData.push({ row, color: selectedJointValue, label: selectedJointText });
+            });
+            
+            jointRulesData.sort((a, b) => a.row - b.row);
+            renderJointRules();
+            inputJointRow.value = '';
+            triggerAutoUpdate();
+        });
+    }
+
+    function renderJointRules() {
+        if (!jointRulesContainer) return;
+        jointRulesContainer.innerHTML = '';
+        if (jointRulesData.length === 0) { 
+            jointRulesContainer.innerHTML = '<small style="color:#999; font-style:italic;">Aucune règle.</small>'; 
+            return; 
+        }
+        
+        jointRulesData.forEach((rule, index) => {
+            const tag = document.createElement('div');
+            tag.className = 'rule-tag';
+            // Affichage spécifique pour indiquer que c'est le joint Horizontal (H)
+            tag.innerHTML = `<span>L${rule.row} : ${rule.label} (H)</span> <span class="remove-joint-tag" data-index="${index}" title="Supprimer" style="cursor:pointer;color:red;font-weight:bold;">&times;</span>`;
+            jointRulesContainer.appendChild(tag);
+        });
+        
+        jointRulesContainer.querySelectorAll('.remove-joint-tag').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                jointRulesData.splice(idx, 1);
+                renderJointRules();
+                triggerAutoUpdate();
+            });
+        });
+    }
+
+    const inputsLigneForcee = [inputRow, inputFinish, inputColor, inputJoint, inputJointRow];
     inputsLigneForcee.forEach(element => {
         if (element) {
             element.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); if (btnAddRule) btnAddRule.click(); }
+                if (e.key === 'Enter') { 
+                    e.preventDefault(); 
+                    if (element === inputJointRow && btnAddJointRule) {
+                        btnAddJointRule.click();
+                    } else if (btnAddRule) {
+                        btnAddRule.click(); 
+                    }
+                }
             });
         }
     });
@@ -704,13 +828,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!rulesContainer) return;
         rulesContainer.innerHTML = '';
         if (rulesData.length === 0) { rulesContainer.innerHTML = '<small style="color:#999; font-style:italic;">Aucune.</small>'; return; }
-        const colorLabels = { 'blanc': 'Blanc', 'tonpierre': 'Ton Pierre', 'jaune': 'Jaune', 'saumon': 'Saumon', 'rouge': 'Rouge', 'chocolat': 'Chocolat', 'brun': 'Brun', 'grisclair': 'Gris Clair', 'grisfonce': 'Gris Foncé', 'anthracite': 'Anthracite', 'superblanc': 'Super Blanc', 'bleu': 'Bleu', 'vert': 'Vert', 'terredesienne': 'Terre de Sienne', 'orange': 'Orange', 'corail': 'Corail', 'tomette': 'Tomette', 'carmin': 'Carmin', 'liedevin': 'Lie de Vin' };
+        // UTILISATION DE LA CONSTANTE COLOR_LABELS POUR LES TAGS
         rulesData.forEach((rule, index) => {
             const tag = document.createElement('div');
             tag.className = 'rule-tag';
             const finishLabel = (rule.finish === 'roc') ? 'Roc' : 'Lisse';
             let text = `L${rule.row} : ${finishLabel}`;
             if (rule.color) { const cLabel = COLOR_LABELS[rule.color] || rule.color; text += ` (${cLabel})`; }
+            
+            // MODIFICATION D'AFFICHAGE : Si un joint est défini pour la ligne, on l'affiche
+            if (rule.joint && rule.joint !== "") {
+                 let jointName = "Joint Spécifique";
+                 // On essaie de trouver le nom lisible dans le select principal si possible
+                 if(selectJoint) {
+                     const opt = selectJoint.querySelector(`option[value="${rule.joint}"]`);
+                     if(opt) jointName = opt.text;
+                 }
+                 text += ` + ${jointName} (V)`;
+            }
+            
             tag.innerHTML = `<span>${text}</span> <span class="remove-tag" data-index="${index}" title="Supprimer" style="cursor:pointer;color:red;font-weight:bold;">&times;</span>`;
             rulesContainer.appendChild(tag);
         });
@@ -925,6 +1061,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // 5. Reset Rules
             rulesData = [];
             renderRules();
+            
+            // RESET JOINT RULES (Bloc 4)
+            jointRulesData = [];
+            renderJointRules();
 
             // 6. Reset 3D Relief
             if(selectReliefType) {
@@ -936,9 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(selectScene) selectScene.value = 'neutre';
             if(zoomSlider) { zoomSlider.value = 1; zoomSlider.dispatchEvent(new Event('input')); }
 
-            // 8. RÉAFFICHAGE VIDÉO (Au lieu de lancer le moteur esquisse)
-            
-            // On vide le canvas visuellement pour que ce soit propre
+            // 8. RÉAFFICHAGE VIDÉO
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             
@@ -953,7 +1091,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // On réarme l'événement pour cacher l'overlay au prochain clic
             const configPanel = document.querySelector('.config-panel');
             if (configPanel) { 
-                // Pour éviter les doublons d'écouteurs, on supprime l'ancien (si possible) et on remet
                 configPanel.removeEventListener('mousedown', dismissWelcomeScreen);
                 configPanel.addEventListener('mousedown', dismissWelcomeScreen, { once: true });
                 configPanel.removeEventListener('touchstart', dismissWelcomeScreen);
@@ -962,8 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // MODIFICATION : Suppression de l'appel automatique au démarrage
-    // Le code ci-dessous est commenté/supprimé pour laisser la vidéo visible
+    // Pas d'auto-start pour laisser la vidéo visible
     // setTimeout(() => { lancerGenerationMoteur(); }, 500);
 
     function lancerGenerationMoteur() {
@@ -976,7 +1112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const appareillageChoisi = selectAppareillage.value;
             const nomFichierJointGlobal = selectJoint ? selectJoint.value : 'joint_grisclair.png';
             const typeJoint = selectTypeJoint ? selectTypeJoint.value : 'plat'; 
-            const grainJoint = selectGrainJoint ? selectGrainJoint.value : 'fin'; // RECUPERATION GRAIN
+            const grainJoint = selectGrainJoint ? selectGrainJoint.value : 'fin'; 
             const largeurJointH = sliderJointH ? parseInt(sliderJointH.value) : 10; 
             const largeurJointV = sliderJointV ? parseInt(sliderJointV.value) : 10; 
             const pourcentageRoc = parseInt(sliderRoc.value);
@@ -988,7 +1124,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const reliefInColor = selectReliefInColor ? selectReliefInColor.value : 'auto';
             const reliefInFinish = selectReliefInFinish ? selectReliefInFinish.value : 'auto';
             
-            const lignesRocMap = {}; const lignesLisseMap = {}; const lignesJointMap = {}; 
+            const lignesRocMap = {}; const lignesLisseMap = {}; 
+            const lignesJointVMap = {}; // Gère le joint Vertical (Bloc 3)
+            const lignesJointHMap = {}; // Gère le joint Horizontal (Bloc 4)
+            
             const colorWeights = {}; let totalWeight = 0;
             
             const sliders = document.querySelectorAll('#dynamic-sliders-container input');
@@ -999,18 +1138,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (totalWeight === 0 && couleursChoisies.length > 0) { couleursChoisies.forEach(c => { colorWeights[c] = 100; totalWeight+=100; }); }
 
+            // BLOC 3 : Briques + Joints V
             rulesData.forEach(r => {
                 const colorToUse = (r.color && r.color !== "") ? r.color : null;
+                // Remplissage des maps de briques
                 if (r.finish === 'roc') lignesRocMap[r.row] = colorToUse; else lignesLisseMap[r.row] = colorToUse;
-                if (r.joint) lignesJointMap[r.row] = r.joint;
+                
+                // RESTAURATION : Remplissage de la map de joint Vertical
+                if (r.joint && r.joint !== "") {
+                    lignesJointVMap[r.row] = r.joint;
+                }
+            });
+            
+            // BLOC 4 : Joints H uniquement (Override)
+            jointRulesData.forEach(r => {
+                if(r.color) lignesJointHMap[r.row] = r.color;
             });
 
             let configProduit = PRODUITS_CONFIG[produitChoisi]; if (!configProduit) configProduit = PRODUITS_CONFIG['p1'];
 
-            // MODIFICATION CHARGEMENT IMAGES JOINT
             const getJointName = (baseName, grain) => {
-                // Si grain fin -> nom de base (ex: joint_gris.png)
-                // Si grain standard -> nom + _1 (ex: joint_gris_1.png)
                 return (grain === 'fin') ? baseName : baseName.replace('.png', '_1.png');
             };
 
@@ -1018,7 +1165,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const listeACharger = [actualGlobalJoint];
             
             if (couleursChoisies.length > 0) {
-                Object.values(lignesJointMap).forEach(j => { 
+                // Chargement des joints V spécifiques
+                Object.values(lignesJointVMap).forEach(j => { 
+                    const actualJ = getJointName(j, grainJoint);
+                    if (j && !listeACharger.includes(actualJ)) listeACharger.push(actualJ); 
+                });
+                // Chargement des joints H spécifiques
+                Object.values(lignesJointHMap).forEach(j => { 
                     const actualJ = getJointName(j, grainJoint);
                     if (j && !listeACharger.includes(actualJ)) listeACharger.push(actualJ); 
                 });
@@ -1086,9 +1239,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             imgGlobalJoint, jointsLibrary, 
                             appareillageChoisi, configProduit, 
                             pourcentageRoc, colorWeights,
-                            lignesRocMap, lignesLisseMap, lignesJointMap,
+                            lignesRocMap, lignesLisseMap, lignesJointVMap, lignesJointHMap,
                             largeurJointH, largeurJointV, typeJoint,
-                            grainJoint, // PASSE LE GRAIN
+                            grainJoint, 
                             reliefType, reliefPercent, 
                             reliefOutColor, reliefOutFinish,
                             reliefInColor, reliefInFinish 
@@ -1103,340 +1256,343 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 50);
     }
 
-    function dessinerMur(imagesMap, couleurs, finitions, imgGlobalJoint, jointsLibrary, appareillage, configProduit, pourcentageRoc, colorWeights, lignesRocMap, lignesLisseMap, lignesJointMap, largeurJointH, largeurJointV, typeJoint, grainJoint, reliefType, reliefPercent, reliefOutColor, reliefOutFinish, reliefInColor, reliefInFinish) {
+    function dessinerMur(imagesMap, couleurs, finitions, imgGlobalJoint, jointsLibrary, appareillage, configProduit, pourcentageRoc, colorWeights, lignesRocMap, lignesLisseMap, lignesJointVMap, lignesJointHMap, largeurJointH, largeurJointV, typeJoint, grainJoint, reliefType, reliefPercent, reliefOutColor, reliefOutFinish, reliefInColor, reliefInFinish) {
         
-        // MODIFICATION: DÉTECTION MODE ESQUISSE
-        const modeEsquisse = (couleurs.length === 0);
-        
-        let statsReal = {};
-
-        // FACTEUR D'ECHELLE POUR LE GRAIN (VISUEL)
-        // Fin (0/1) = 0.8 (Légèrement resserré)
-        // Standard (0/3) = 1.2 (Légèrement agrandi pour voir le grain)
-        const scaleModifier = (grainJoint === 'fin') ? 0.5 : 0.1;
-
-        let moduleW;
-        if (appareillage === 'moucharabieh') moduleW = configProduit.dims.largeur * (4/3);
-        else moduleW = configProduit.dims.largeur + largeurJointV;
-
-        const moduleH = configProduit.dims.hauteur + largeurJointH;
-        const nbCols = Math.round(LARGEUR_CIBLE_MM / moduleW);
-        let nbRows = Math.round(HAUTEUR_CIBLE_MM / moduleH);
-        
-        if (['demi-brique', 'moucharabieh', 'flamand'].includes(appareillage)) { if (nbRows % 2 !== 0) nbRows++; }
-        else if (appareillage === 'tiers') { while (nbRows % 3 !== 0) nbRows++; }
-
-        const exactWidthMM = nbCols * moduleW;
-        const exactHeightMM = nbRows * moduleH;
-        
-        if(dimensionsInfoSpan) dimensionsInfoSpan.textContent = `Zone : ${Math.round(exactWidthMM)} x ${Math.round(exactHeightMM)} mm`;
-
-        const { ctx, width, height, scaleFactor: ECHELLE } = setupCanvas(exactWidthMM, exactHeightMM);
-
-        const dimsMM = configProduit.dims;
-        const tailleTextureBriqueMM = configProduit.texture_mm;
-        
-        const LARGEUR_JOINT_H_PX = largeurJointH * ECHELLE;
-        const LARGEUR_JOINT_V_PX = largeurJointV * ECHELLE;
-        const LARGEUR_BRIQUE_PX = dimsMM.largeur * ECHELLE;
-        const HAUTEUR_BRIQUE_PX = dimsMM.hauteur * ECHELLE;
-        const LARGEUR_BOUTISSE_PX = 105 * ECHELLE;
-
-        const OMBRE_FONCEE = 'rgba(0, 0, 0, 0.45)'; 
-        const OMBRE_CLAIRE = 'rgba(255, 255, 255, 0.3)'; 
-        const OMBRE_TAILLE = Math.round(Math.max(1, LARGEUR_JOINT_H_PX * 0.2)); 
-        const JOINT_CONCAVE_OMBRE = 'rgba(0, 0, 0, 0.2)'; 
-        const JOINT_CONCAVE_CLAIRE = 'rgba(255, 255, 255, 0.1)';
-        const JOINT_CONCAVE_LIGNE_PX = Math.round(Math.max(1, LARGEUR_JOINT_H_PX * 0.4)); 
-
-        // BACKGROUND
-        if (modeEsquisse) {
-            ctx.fillStyle = "#ffffff"; // Fond blanc pour l'esquisse
-        } else {
-            let patternMortierGlobal = null;
-            let colorDefault = "#cccccc";
-
-            if (imgGlobalJoint) {
-                patternMortierGlobal = ctx.createPattern(imgGlobalJoint, 'repeat');
-                // APPLICATION ECHELLE GRAIN + TEXTURE
-                let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgGlobalJoint.width;
-                patternMortierGlobal.setTransform(new DOMMatrix().scale(scale));
-            }
-            // --- CORRECTION MOUCHARABIEH 3D ---
-            if (appareillage === 'moucharabieh') {
-                ctx.fillStyle = "#2c2c2c"; 
-            } else {
-                ctx.fillStyle = patternMortierGlobal ? patternMortierGlobal : colorDefault;
-            }
-        }
-        ctx.fillRect(0, 0, width, height);
-
-        // LIGNES DE JOINT EN MODE ESQUISSE (OPTIONNEL : on laisse juste le fond blanc et les briques feront le reste)
-        
-        if (!modeEsquisse && typeJoint === 'demi-rond' && appareillage !== 'moucharabieh') {
-            for (let y = 0; y < height + LARGEUR_JOINT_H_PX; y += (HAUTEUR_BRIQUE_PX + LARGEUR_JOINT_H_PX)) {
-                ctx.fillStyle = JOINT_CONCAVE_OMBRE;
-                ctx.fillRect(0, y + (LARGEUR_JOINT_H_PX / 2) - (JOINT_CONCAVE_LIGNE_PX / 2), width, JOINT_CONCAVE_LIGNE_PX);
-                ctx.fillStyle = JOINT_CONCAVE_CLAIRE;
-                ctx.fillRect(0, y, width, 1); 
-            }
-        }
-        
-        let numeroRang = 0; 
-        const STEP_Y = HAUTEUR_BRIQUE_PX + LARGEUR_JOINT_H_PX;
-        
-        // PRÉPARATION DECK COULEURS (Seulement si pas esquisse)
-        let colorDeck = [];
-        let deckIndex = 0;
-        
-        if (!modeEsquisse) {
-            const totalBriquesEstime = (nbCols * nbRows) * 1.5; 
-            let totalWeight = 0;
-            couleurs.forEach(c => totalWeight += (colorWeights[c] || 0));
-            if (totalWeight === 0) totalWeight = 100;
-
-            couleurs.forEach(c => {
-                const weight = colorWeights[c] || 0;
-                const count = Math.round((weight / totalWeight) * totalBriquesEstime);
-                for(let i=0; i<count; i++) colorDeck.push(c);
-            });
-
-            for (let i = colorDeck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [colorDeck[i], colorDeck[j]] = [colorDeck[j], colorDeck[i]];
-            }
-        }
-
-        for (let y = LARGEUR_JOINT_H_PX; y < height; y += STEP_Y) {
+        try {
+            const modeEsquisse = (couleurs.length === 0);
             
-            let rowEdgeColor = null;
-            let rowEdgeFinition = 'lisse';
+            let statsReal = {};
 
-            if (!modeEsquisse) {
-                if (deckIndex < colorDeck.length) { rowEdgeColor = colorDeck[deckIndex]; deckIndex++; } else { rowEdgeColor = couleurs[Math.floor(Math.random() * couleurs.length)]; }
+            const scaleModifier = (grainJoint === 'fin') ? 0.5 : 0.1;
 
-                if (finitions.includes('lisse') && finitions.includes('roc')) {
-                     rowEdgeFinition = (Math.random() * 100 < pourcentageRoc) ? 'roc' : 'lisse';
-                } else if (finitions.includes('roc')) { rowEdgeFinition = 'roc'; }
-            }
+            let moduleW;
+            if (appareillage === 'moucharabieh') moduleW = configProduit.dims.largeur * (4/3);
+            else moduleW = configProduit.dims.largeur + largeurJointV;
 
-            let currentPatternV = null;
-            if(!modeEsquisse) {
-                // PATTERN GLOBAL
+            const moduleH = configProduit.dims.hauteur + largeurJointH;
+            const nbCols = Math.round(LARGEUR_CIBLE_MM / moduleW);
+            
+            let nbRows = Math.round(HAUTEUR_CIBLE_MM / moduleH);
+            if (['demi-brique', 'moucharabieh', 'flamand'].includes(appareillage)) { if (nbRows % 2 !== 0) nbRows++; }
+            else if (appareillage === 'tiers') { while (nbRows % 3 !== 0) nbRows++; }
+
+            const exactWidthMM = nbCols * moduleW;
+            const exactHeightMM = nbRows * moduleH;
+            
+            if(dimensionsInfoSpan) dimensionsInfoSpan.textContent = `Zone : ${Math.round(exactWidthMM)} x ${Math.round(exactHeightMM)} mm`;
+
+            const { ctx, width, height, scaleFactor: ECHELLE } = setupCanvas(exactWidthMM, exactHeightMM);
+
+            const dimsMM = configProduit.dims;
+            const tailleTextureBriqueMM = configProduit.texture_mm;
+            
+            const LARGEUR_JOINT_H_PX = largeurJointH * ECHELLE;
+            const LARGEUR_JOINT_V_PX = largeurJointV * ECHELLE;
+            const LARGEUR_BRIQUE_PX = dimsMM.largeur * ECHELLE;
+            const HAUTEUR_BRIQUE_PX = dimsMM.hauteur * ECHELLE;
+            const LARGEUR_BOUTISSE_PX = 105 * ECHELLE;
+
+            const OMBRE_FONCEE = 'rgba(0, 0, 0, 0.45)'; 
+            const OMBRE_CLAIRE = 'rgba(255, 255, 255, 0.3)'; 
+            const OMBRE_TAILLE = Math.round(Math.max(1, LARGEUR_JOINT_H_PX * 0.2)); 
+            const JOINT_CONCAVE_OMBRE = 'rgba(0, 0, 0, 0.2)'; 
+            const JOINT_CONCAVE_CLAIRE = 'rgba(255, 255, 255, 0.1)';
+            const JOINT_CONCAVE_LIGNE_PX = Math.round(Math.max(1, LARGEUR_JOINT_H_PX * 0.4)); 
+
+            // BACKGROUND
+            if (modeEsquisse) {
+                ctx.fillStyle = "#ffffff"; 
+            } else {
+                let patternMortierGlobal = null;
+                let colorDefault = "#cccccc";
+
                 if (imgGlobalJoint) {
-                    currentPatternV = ctx.createPattern(imgGlobalJoint, 'repeat');
+                    patternMortierGlobal = ctx.createPattern(imgGlobalJoint, 'repeat');
                     let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgGlobalJoint.width;
-                    currentPatternV.setTransform(new DOMMatrix().scale(scale));
+                    patternMortierGlobal.setTransform(new DOMMatrix().scale(scale));
+                }
+                if (appareillage === 'moucharabieh') {
+                    ctx.fillStyle = "#2c2c2c"; 
                 } else {
-                    currentPatternV = "#ccc";
+                    ctx.fillStyle = patternMortierGlobal ? patternMortierGlobal : colorDefault;
+                }
+            }
+            ctx.fillRect(0, 0, width, height);
+
+            if (!modeEsquisse && typeJoint === 'demi-rond' && appareillage !== 'moucharabieh') {
+                for (let y = 0; y < height + LARGEUR_JOINT_H_PX; y += (HAUTEUR_BRIQUE_PX + LARGEUR_JOINT_H_PX)) {
+                    ctx.fillStyle = JOINT_CONCAVE_OMBRE;
+                    ctx.fillRect(0, y + (LARGEUR_JOINT_H_PX / 2) - (JOINT_CONCAVE_LIGNE_PX / 2), width, JOINT_CONCAVE_LIGNE_PX);
+                    ctx.fillStyle = JOINT_CONCAVE_CLAIRE;
+                    ctx.fillRect(0, y, width, 1); 
+                }
+            }
+            
+            let numeroRang = 0; 
+            const STEP_Y = HAUTEUR_BRIQUE_PX + LARGEUR_JOINT_H_PX;
+            
+            let colorDeck = [];
+            let deckIndex = 0;
+            
+            if (!modeEsquisse) {
+                const totalBriquesEstime = (nbCols * nbRows) * 1.5; 
+                let totalWeight = 0;
+                couleurs.forEach(c => totalWeight += (colorWeights[c] || 0));
+                if (totalWeight === 0) totalWeight = 100;
+
+                couleurs.forEach(c => {
+                    const weight = colorWeights[c] || 0;
+                    const count = Math.round((weight / totalWeight) * totalBriquesEstime);
+                    for(let i=0; i<count; i++) colorDeck.push(c);
+                });
+
+                for (let i = colorDeck.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [colorDeck[i], colorDeck[j]] = [colorDeck[j], colorDeck[i]];
+                }
+            }
+
+            for (let y = LARGEUR_JOINT_H_PX; y < height; y += STEP_Y) {
+                
+                let rowEdgeColor = null;
+                let rowEdgeFinition = 'lisse';
+
+                if (!modeEsquisse) {
+                    if (deckIndex < colorDeck.length) { rowEdgeColor = colorDeck[deckIndex]; deckIndex++; } else { rowEdgeColor = couleurs[Math.floor(Math.random() * couleurs.length)]; }
+
+                    if (finitions.includes('lisse') && finitions.includes('roc')) {
+                         rowEdgeFinition = (Math.random() * 100 < pourcentageRoc) ? 'roc' : 'lisse';
+                    } else if (finitions.includes('roc')) { rowEdgeFinition = 'roc'; }
                 }
 
-                // PATTERN SPECIFIQUE
-                const forcedJointNameBase = lignesJointMap[numeroRang + 1];
-                if (forcedJointNameBase) {
-                    // Calcul du nom réel avec suffixe
-                    const forcedJointNameActual = (grainJoint === 'fin') ? forcedJointNameBase : forcedJointNameBase.replace('.png', '_1.png');
+                let currentPatternV = null;
+                
+                const logicalRow = nbRows - numeroRang;
+
+                if(!modeEsquisse) {
+                    if (imgGlobalJoint) {
+                        currentPatternV = ctx.createPattern(imgGlobalJoint, 'repeat');
+                        let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgGlobalJoint.width;
+                        currentPatternV.setTransform(new DOMMatrix().scale(scale));
+                    } else {
+                        currentPatternV = "#ccc";
+                    }
+
+                    // --- 1. JOINT VERTICAL (Priorité Bloc 3) ---
+                    const forcedJointVName = lignesJointVMap[logicalRow];
                     
-                    if (jointsLibrary[forcedJointNameActual]) {
-                        const imgSpecific = jointsLibrary[forcedJointNameActual];
-                        const pSpecific = ctx.createPattern(imgSpecific, 'repeat');
-                        let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgSpecific.width;
-                        pSpecific.setTransform(new DOMMatrix().scale(scale));
-                        currentPatternV = pSpecific;
+                    if (forcedJointVName) {
+                        const actualV = (grainJoint === 'fin') ? forcedJointVName : forcedJointVName.replace('.png', '_1.png');
+                        if (jointsLibrary[actualV]) {
+                            const imgV = jointsLibrary[actualV];
+                            const pV = ctx.createPattern(imgV, 'repeat');
+                            let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgV.width;
+                            pV.setTransform(new DOMMatrix().scale(scale));
+                            currentPatternV = pV;
+                        }
+                    }
+
+                    // --- 2. JOINT HORIZONTAL (Priorité Bloc 4 > Global) ---
+                    // CORRECTION : On ne prend PLUS le joint V comme fallback
+                    let forcedJointHName = lignesJointHMap[logicalRow]; 
+                    
+                    if (forcedJointHName) {
+                        const actualH = (grainJoint === 'fin') ? forcedJointHName : forcedJointHName.replace('.png', '_1.png');
+                        if (jointsLibrary[actualH]) {
+                            const imgH = jointsLibrary[actualH];
+                            const pH = ctx.createPattern(imgH, 'repeat');
+                            let scale = ((TAILLE_REELLE_TEXTURE_JOINT_MM * scaleModifier) * ECHELLE) / imgH.width;
+                            pH.setTransform(new DOMMatrix().scale(scale));
+
+                            // DESSIN BANDE HORIZONTALE SPECIFIQUE
+                            if (appareillage !== 'moucharabieh') {
+                                ctx.save();
+                                ctx.fillStyle = pH;
+                                ctx.fillRect(0, y - LARGEUR_JOINT_H_PX, width, LARGEUR_JOINT_H_PX);
+                                ctx.restore();
+                            }
+                        }
                     }
                 }
-            }
 
-            const infoLigneRoc = lignesRocMap[numeroRang + 1]; 
-            const infoLigneLisse = lignesLisseMap[numeroRang + 1];
+                const infoLigneRoc = lignesRocMap[logicalRow]; 
+                const infoLigneLisse = lignesLisseMap[logicalRow];
 
-            // --- CALCUL DU DÉCALAGE X ---
-            let decalageX = 0;
-            if (appareillage === 'demi-brique' && numeroRang % 2 !== 0) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) / 2;
-            else if (appareillage === 'tiers') {
-                if (numeroRang % 3 === 1) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) / 3;
-                if (numeroRang % 3 === 2) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) * 2/3;
-            }
-            else if (appareillage === 'moucharabieh' && numeroRang % 2 !== 0) {
-                decalageX = -(LARGEUR_BRIQUE_PX * (2/3));
-            }
-            else if (appareillage === 'flamand' && numeroRang % 2 !== 0) {
-                decalageX = -(LARGEUR_BRIQUE_PX * 0.75); 
-            }
-            else if (appareillage === 'anglais' && numeroRang % 2 !== 0) {
-                 decalageX = -(LARGEUR_BOUTISSE_PX / 2);
-            }
-
-            let x = decalageX - LARGEUR_BRIQUE_PX; 
-            let briqueIndexInRow = 0;
-
-            while (x < width) {
-                let currentBriqueWidth = LARGEUR_BRIQUE_PX; 
-
-                if (appareillage === 'flamand') {
-                    if (briqueIndexInRow % 2 !== 0) currentBriqueWidth = LARGEUR_BOUTISSE_PX; 
+                let decalageX = 0;
+                if (appareillage === 'demi-brique' && numeroRang % 2 !== 0) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) / 2;
+                else if (appareillage === 'tiers') {
+                    if (numeroRang % 3 === 1) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) / 3;
+                    if (numeroRang % 3 === 2) decalageX = -(LARGEUR_BRIQUE_PX + LARGEUR_JOINT_V_PX) * 2/3;
                 }
-                else if (appareillage === 'anglais') {
-                    if (numeroRang % 2 !== 0) currentBriqueWidth = LARGEUR_BOUTISSE_PX; 
+                else if (appareillage === 'moucharabieh' && numeroRang % 2 !== 0) {
+                    decalageX = -(LARGEUR_BRIQUE_PX * (2/3));
+                }
+                else if (appareillage === 'flamand' && numeroRang % 2 !== 0) {
+                    decalageX = -(LARGEUR_BRIQUE_PX * 0.75); 
+                }
+                else if (appareillage === 'anglais' && numeroRang % 2 !== 0) {
+                     decalageX = -(LARGEUR_BOUTISSE_PX / 2);
                 }
 
-                if (modeEsquisse) {
-                    // --- DESSIN ESQUISSE (TRAIT DE CRAYON) ---
-                    ctx.strokeStyle = "#999999"; // Gris moyen pour le trait
-                    ctx.lineWidth = 1;
-                    // Dessin du rectangle vide
-                    ctx.strokeRect(x, y, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
-                    
-                    // Petit effet optionnel pour simuler le volume léger
-                    // ctx.fillStyle = "rgba(0,0,0,0.02)";
-                    // ctx.fillRect(x, y, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                let x = decalageX - LARGEUR_BRIQUE_PX; 
+                let briqueIndexInRow = 0;
 
-                } else {
-                    // --- LOGIQUE COMPLETE TEXTURE ---
-                    let couleurName, finitionName = 'lisse'; 
-                    
-                    if (infoLigneRoc !== undefined) {
-                        finitionName = 'roc';
-                        couleurName = (infoLigneRoc !== null) ? infoLigneRoc : couleurs[Math.floor(Math.random() * couleurs.length)];
-                    } else if (infoLigneLisse !== undefined) {
-                        finitionName = 'lisse';
-                        couleurName = (infoLigneLisse !== null) ? infoLigneLisse : couleurs[Math.floor(Math.random() * couleurs.length)];
+                while (x < width) {
+                    let currentBriqueWidth = LARGEUR_BRIQUE_PX; 
+
+                    if (appareillage === 'flamand') {
+                        if (briqueIndexInRow % 2 !== 0) currentBriqueWidth = LARGEUR_BOUTISSE_PX; 
+                    }
+                    else if (appareillage === 'anglais') {
+                        if (numeroRang % 2 !== 0) currentBriqueWidth = LARGEUR_BOUTISSE_PX; 
+                    }
+
+                    if (modeEsquisse) {
+                        ctx.strokeStyle = "#999999"; 
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x, y, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
                     } else {
-                        const isCutBlock = (x < -1) || (x + currentBriqueWidth > width + 1);
-                        if (isCutBlock) {
-                            couleurName = rowEdgeColor;
-                            finitionName = rowEdgeFinition;
+                        let couleurName, finitionName = 'lisse'; 
+                        
+                        if (infoLigneRoc !== undefined) {
+                            finitionName = 'roc';
+                            couleurName = (infoLigneRoc !== null) ? infoLigneRoc : couleurs[Math.floor(Math.random() * couleurs.length)];
+                        } else if (infoLigneLisse !== undefined) {
+                            finitionName = 'lisse';
+                            couleurName = (infoLigneLisse !== null) ? infoLigneLisse : couleurs[Math.floor(Math.random() * couleurs.length)];
                         } else {
-                            if (deckIndex < colorDeck.length) { couleurName = colorDeck[deckIndex++]; } 
-                            else { couleurName = couleurs[0]; }
-                            
-                            if (finitions.includes('lisse') && finitions.includes('roc')) {
-                                finitionName = (Math.random() * 100 < pourcentageRoc) ? 'roc' : 'lisse';
-                            } else if (finitions.includes('roc')) { finitionName = 'roc'; }
+                            const isCutBlock = (x < -1) || (x + currentBriqueWidth > width + 1);
+                            if (isCutBlock) {
+                                couleurName = rowEdgeColor;
+                                finitionName = rowEdgeFinition;
+                            } else {
+                                if (deckIndex < colorDeck.length) { couleurName = colorDeck[deckIndex++]; } 
+                                else { couleurName = couleurs[0]; }
+                                
+                                if (finitions.includes('lisse') && finitions.includes('roc')) {
+                                    finitionName = (Math.random() * 100 < pourcentageRoc) ? 'roc' : 'lisse';
+                                } else if (finitions.includes('roc')) { finitionName = 'roc'; }
+                            }
                         }
-                    }
 
-                    // --- DÉCISION DU RELIEF 3D ---
-                    let mode3D = 'normal'; 
-                    if (reliefType !== 'none' && x > 0 && x < width - currentBriqueWidth) {
-                        if (Math.random() * 100 < reliefPercent) {
-                            if (reliefType === 'random-out') mode3D = 'out';
-                            else if (reliefType === 'random-in') mode3D = 'in';
-                            else if (reliefType === 'random-mix') mode3D = (Math.random() > 0.5) ? 'out' : 'in';
+                        let mode3D = 'normal'; 
+                        if (reliefType !== 'none' && x > 0 && x < width - currentBriqueWidth) {
+                            if (Math.random() * 100 < reliefPercent) {
+                                if (reliefType === 'random-out') mode3D = 'out';
+                                else if (reliefType === 'random-in') mode3D = 'in';
+                                else if (reliefType === 'random-mix') mode3D = (Math.random() > 0.5) ? 'out' : 'in';
+                            }
                         }
-                    }
 
-                    // --- OVERRIDE SI RELIEF ---
-                    if (mode3D === 'out') {
-                        if (reliefOutColor && reliefOutColor !== 'auto') couleurName = reliefOutColor;
-                        if (reliefOutFinish && reliefOutFinish !== 'auto') finitionName = reliefOutFinish;
-                    }
-                    if (mode3D === 'in') {
-                        if (reliefInColor && reliefInColor !== 'auto') couleurName = reliefInColor;
-                        if (reliefInFinish && reliefInFinish !== 'auto') finitionName = reliefInFinish;
-                    }
-                    
-                    if (finitionName === 'roc' && NO_ROC_COLORS.includes(couleurName)) {
-                        finitionName = 'lisse';
-                    }
-
-                    // STATS
-                    if (couleurName && finitionName) {
-                        const statKey = `${couleurName}|${finitionName}`;
-                        statsReal[statKey] = (statsReal[statKey] || 0) + 1;
-                    }
-                    
-                    const key = couleurName + '_' + finitionName;
-                    const imgList = imagesMap[key];
-                    
-                    if (imgList && imgList.length > 0) {
-                        const img = imgList[Math.floor(Math.random() * imgList.length)];
-                        const p = ctx.createPattern(img, 'repeat');
-                        let scale = (tailleTextureBriqueMM * ECHELLE) / img.width;
-                        p.setTransform(new DOMMatrix().scale(scale));
-                        
-                        ctx.save();
-                        let drawX = x; let drawY = y;
-                        
                         if (mode3D === 'out') {
-                            const shift = ECHELLE * 4; drawX -= shift; drawY -= shift;
-                            ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x + shift, y + shift, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                            if (reliefOutColor && reliefOutColor !== 'auto') couleurName = reliefOutColor;
+                            if (reliefOutFinish && reliefOutFinish !== 'auto') finitionName = reliefOutFinish;
                         }
-                        
-                        ctx.translate(drawX, drawY);
-                        
-                        // =================================================================
-                        // EFFET DE PROFONDEUR "EXTRUSION SOLIDE" MOUCHARABIEH
-                        // =================================================================
-                        if (appareillage === 'moucharabieh') {
-                            const profondeur3D = 25 * ECHELLE; 
-                            ctx.fillStyle = "#0a0a0a"; 
-                            ctx.fillRect(profondeur3D, profondeur3D, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
-                        }
-
-                        if (appareillage !== 'moucharabieh' && LARGEUR_JOINT_V_PX > 0) {
-                            ctx.fillStyle = currentPatternV; ctx.fillRect(currentBriqueWidth, 0, LARGEUR_JOINT_V_PX, HAUTEUR_BRIQUE_PX);
-                        }
-
-                       if (appareillage === 'moucharabieh') {
-                            // En mode texture, on utilise le mortier global
-                            const patternMortierGlobal = imgGlobalJoint ? ctx.createPattern(imgGlobalJoint, 'repeat') : "#ccc"; 
-                            // (Note: patternMortierGlobal redéclaré ici pour simplifier la portée dans cette boucle massive, 
-                            // idéalement devrait être passé en arg, mais on fait simple pour préserver le code)
-                             ctx.fillStyle = patternMortierGlobal; // Simplification
-                        
-                            const mortierH = LARGEUR_JOINT_H_PX; const tiers = currentBriqueWidth / 3; 
-                            ctx.fillRect(0, HAUTEUR_BRIQUE_PX, tiers, mortierH); ctx.fillRect(2 * tiers, HAUTEUR_BRIQUE_PX, tiers, mortierH);
-                            ctx.fillRect(0, -mortierH, tiers, mortierH); ctx.fillRect(2 * tiers, -mortierH, tiers, mortierH);
-                            ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, HAUTEUR_BRIQUE_PX, tiers, 2); ctx.fillRect(2 * tiers, HAUTEUR_BRIQUE_PX, tiers, 2);
-                        }
-                        
-                        ctx.fillStyle = OMBRE_FONCEE;
-                        ctx.fillRect(0, HAUTEUR_BRIQUE_PX - OMBRE_TAILLE, currentBriqueWidth, OMBRE_TAILLE); 
-                        if (LARGEUR_JOINT_V_PX > 0) ctx.fillRect(currentBriqueWidth - OMBRE_TAILLE, 0, OMBRE_TAILLE, HAUTEUR_BRIQUE_PX); 
-
-                        const baseColor = FALLBACK_COLORS[couleurName] || '#cccccc';
-                        ctx.fillStyle = baseColor;
-                        if (LARGEUR_JOINT_V_PX === 0 && appareillage !== 'moucharabieh') { ctx.fillRect(0, OMBRE_TAILLE, currentBriqueWidth, HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); } 
-                        else { ctx.fillRect(OMBRE_TAILLE, OMBRE_TAILLE, currentBriqueWidth - (2 * OMBRE_TAILLE), HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); }
-
-                        ctx.fillStyle = OMBRE_CLAIRE;
-                        ctx.fillRect(0, 0, currentBriqueWidth - (LARGEUR_JOINT_V_PX > 0 ? OMBRE_TAILLE : 0), OMBRE_TAILLE); 
-                        if (LARGEUR_JOINT_V_PX > 0) ctx.fillRect(0, 0, OMBRE_TAILLE, HAUTEUR_BRIQUE_PX - OMBRE_TAILLE); 
-
-                        ctx.fillStyle = p;
-                        if (LARGEUR_JOINT_V_PX === 0 && appareillage !== 'moucharabieh') { ctx.fillRect(0, OMBRE_TAILLE, currentBriqueWidth, HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); } 
-                        else { ctx.fillRect(OMBRE_TAILLE, OMBRE_TAILLE, currentBriqueWidth - (2 * OMBRE_TAILLE), HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); }
-                        
                         if (mode3D === 'in') {
-                            const innerShadowSize = ECHELLE * 6; 
-                            ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(0, 0, currentBriqueWidth, innerShadowSize); ctx.fillRect(0, 0, innerShadowSize, HAUTEUR_BRIQUE_PX); 
-                            ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, 0, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                            if (reliefInColor && reliefInColor !== 'auto') couleurName = reliefInColor;
+                            if (reliefInFinish && reliefInFinish !== 'auto') finitionName = reliefInFinish;
                         }
-                        else if (mode3D === 'out') {
-                            ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(0, 0, currentBriqueWidth, ECHELLE * 2); ctx.fillRect(0, 0, ECHELLE * 2, HAUTEUR_BRIQUE_PX);
+                        
+                        if (finitionName === 'roc' && NO_ROC_COLORS.includes(couleurName)) {
+                            finitionName = 'lisse';
                         }
 
-                        if (typeJoint === 'demi-rond' && appareillage !== 'moucharabieh' && LARGEUR_JOINT_V_PX > 0) {
-                            const ligneV_PX = Math.max(1, LARGEUR_JOINT_V_PX * 0.4);
-                            ctx.fillStyle = JOINT_CONCAVE_OMBRE; ctx.fillRect(currentBriqueWidth + (LARGEUR_JOINT_V_PX / 2) - (ligneV_PX / 2), 0, ligneV_PX, HAUTEUR_BRIQUE_PX);
+                        if (couleurName && finitionName) {
+                            const statKey = `${couleurName}|${finitionName}`;
+                            statsReal[statKey] = (statsReal[statKey] || 0) + 1;
                         }
-                        ctx.restore();
-                    } else {
-                        const fallbackColor = FALLBACK_COLORS[couleurName] || '#999';
-                        ctx.fillStyle = fallbackColor; ctx.fillRect(x, y, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                        
+                        const key = couleurName + '_' + finitionName;
+                        const imgList = imagesMap[key];
+                        
+                        if (imgList && imgList.length > 0) {
+                            const img = imgList[Math.floor(Math.random() * imgList.length)];
+                            const p = ctx.createPattern(img, 'repeat');
+                            let scale = (tailleTextureBriqueMM * ECHELLE) / img.width;
+                            p.setTransform(new DOMMatrix().scale(scale));
+                            
+                            ctx.save();
+                            let drawX = x; let drawY = y;
+                            
+                            if (mode3D === 'out') {
+                                const shift = ECHELLE * 4; drawX -= shift; drawY -= shift;
+                                ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x + shift, y + shift, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                            }
+                            
+                            ctx.translate(drawX, drawY);
+                            
+                            if (appareillage === 'moucharabieh') {
+                                const profondeur3D = 25 * ECHELLE; 
+                                ctx.fillStyle = "#0a0a0a"; 
+                                ctx.fillRect(profondeur3D, profondeur3D, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                            }
+
+                            if (appareillage !== 'moucharabieh' && LARGEUR_JOINT_V_PX > 0) {
+                                ctx.fillStyle = currentPatternV; ctx.fillRect(currentBriqueWidth, 0, LARGEUR_JOINT_V_PX, HAUTEUR_BRIQUE_PX);
+                            }
+
+                        if (appareillage === 'moucharabieh') {
+                                const patternMortierGlobal = imgGlobalJoint ? ctx.createPattern(imgGlobalJoint, 'repeat') : "#ccc"; 
+                                ctx.fillStyle = patternMortierGlobal; 
+                            
+                                const mortierH = LARGEUR_JOINT_H_PX; const tiers = currentBriqueWidth / 3; 
+                                ctx.fillRect(0, HAUTEUR_BRIQUE_PX, tiers, mortierH); ctx.fillRect(2 * tiers, HAUTEUR_BRIQUE_PX, tiers, mortierH);
+                                ctx.fillRect(0, -mortierH, tiers, mortierH); ctx.fillRect(2 * tiers, -mortierH, tiers, mortierH);
+                                ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, HAUTEUR_BRIQUE_PX, tiers, 2); ctx.fillRect(2 * tiers, HAUTEUR_BRIQUE_PX, tiers, 2);
+                            }
+                            
+                            ctx.fillStyle = OMBRE_FONCEE;
+                            ctx.fillRect(0, HAUTEUR_BRIQUE_PX - OMBRE_TAILLE, currentBriqueWidth, OMBRE_TAILLE); 
+                            if (LARGEUR_JOINT_V_PX > 0) ctx.fillRect(currentBriqueWidth - OMBRE_TAILLE, 0, OMBRE_TAILLE, HAUTEUR_BRIQUE_PX); 
+
+                            const baseColor = FALLBACK_COLORS[couleurName] || '#cccccc';
+                            ctx.fillStyle = baseColor;
+                            if (LARGEUR_JOINT_V_PX === 0 && appareillage !== 'moucharabieh') { ctx.fillRect(0, OMBRE_TAILLE, currentBriqueWidth, HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); } 
+                            else { ctx.fillRect(OMBRE_TAILLE, OMBRE_TAILLE, currentBriqueWidth - (2 * OMBRE_TAILLE), HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); }
+
+                            ctx.fillStyle = OMBRE_CLAIRE;
+                            ctx.fillRect(0, 0, currentBriqueWidth - (LARGEUR_JOINT_V_PX > 0 ? OMBRE_TAILLE : 0), OMBRE_TAILLE); 
+                            if (LARGEUR_JOINT_V_PX > 0) ctx.fillRect(0, 0, OMBRE_TAILLE, HAUTEUR_BRIQUE_PX - OMBRE_TAILLE); 
+
+                            ctx.fillStyle = p;
+                            if (LARGEUR_JOINT_V_PX === 0 && appareillage !== 'moucharabieh') { ctx.fillRect(0, OMBRE_TAILLE, currentBriqueWidth, HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); } 
+                            else { ctx.fillRect(OMBRE_TAILLE, OMBRE_TAILLE, currentBriqueWidth - (2 * OMBRE_TAILLE), HAUTEUR_BRIQUE_PX - (2 * OMBRE_TAILLE)); }
+                            
+                            if (mode3D === 'in') {
+                                const innerShadowSize = ECHELLE * 6; 
+                                ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(0, 0, currentBriqueWidth, innerShadowSize); ctx.fillRect(0, 0, innerShadowSize, HAUTEUR_BRIQUE_PX); 
+                                ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fillRect(0, 0, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                            }
+                            else if (mode3D === 'out') {
+                                ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(0, 0, currentBriqueWidth, ECHELLE * 2); ctx.fillRect(0, 0, ECHELLE * 2, HAUTEUR_BRIQUE_PX);
+                            }
+
+                            if (typeJoint === 'demi-rond' && appareillage !== 'moucharabieh' && LARGEUR_JOINT_V_PX > 0) {
+                                const ligneV_PX = Math.max(1, LARGEUR_JOINT_V_PX * 0.4);
+                                ctx.fillStyle = JOINT_CONCAVE_OMBRE; ctx.fillRect(currentBriqueWidth + (LARGEUR_JOINT_V_PX / 2) - (ligneV_PX / 2), 0, ligneV_PX, HAUTEUR_BRIQUE_PX);
+                            }
+                            ctx.restore();
+                        } else {
+                            const fallbackColor = FALLBACK_COLORS[couleurName] || '#999';
+                            ctx.fillStyle = fallbackColor; ctx.fillRect(x, y, currentBriqueWidth, HAUTEUR_BRIQUE_PX);
+                        }
                     }
+
+                    let currentStepX = currentBriqueWidth + LARGEUR_JOINT_V_PX;
+                    if (appareillage === 'moucharabieh') currentStepX = LARGEUR_BRIQUE_PX * (4/3); 
+
+                    x += currentStepX;
+                    briqueIndexInRow++;
                 }
-
-                let currentStepX = currentBriqueWidth + LARGEUR_JOINT_V_PX;
-                if (appareillage === 'moucharabieh') currentStepX = LARGEUR_BRIQUE_PX * (4/3); 
-
-                x += currentStepX;
-                briqueIndexInRow++;
+                numeroRang++; 
             }
-            numeroRang++; 
+            updateTechSummary(exactWidthMM, exactHeightMM, configProduit, statsReal);
+
+        } catch(error) {
+            console.error("Erreur critique dans dessinerMur :", error);
+        } finally {
+            hideLoading();
         }
-        updateTechSummary(exactWidthMM, exactHeightMM, configProduit, statsReal);
     }
 
     // ==========================================
@@ -1493,8 +1649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Au départ, tout est en mortier global
         repartitionMortier[globalJointTxt] = surfaceReferenceM2;
 
-        // On parcourt les règles pour ajuster
-        // rulesData est une variable globale définie plus haut
+        // On parcourt les règles Bloc 3 (Si joint spécifique)
         if (rulesData && rulesData.length > 0) {
             rulesData.forEach(rule => {
                 if (rule.joint && rule.joint !== "") {
@@ -1504,14 +1659,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(option) specificJointName = option.text;
                     else specificJointName = rule.joint.replace('joint_', '').replace('.png', '');
 
-                    // On retire la surface d'un rang au global
                     repartitionMortier[globalJointTxt] = Math.max(0, repartitionMortier[globalJointTxt] - surfaceParRang);
-                    
-                    // On ajoute la surface au spécifique
                     if (!repartitionMortier[specificJointName]) repartitionMortier[specificJointName] = 0;
                     repartitionMortier[specificJointName] += surfaceParRang;
                 }
             });
+        }
+        
+        // AJOUT : PRISE EN COMPTE DES RÈGLES DE JOINT H SEUL (Bloc 4)
+        if (jointRulesData && jointRulesData.length > 0) {
+             jointRulesData.forEach(rule => {
+                // Le nom du joint est stocké dans rule.label
+                let specificJointName = rule.label || "Autre";
+
+                repartitionMortier[globalJointTxt] = Math.max(0, repartitionMortier[globalJointTxt] - surfaceParRang);
+                if (!repartitionMortier[specificJointName]) repartitionMortier[specificJointName] = 0;
+                repartitionMortier[specificJointName] += surfaceParRang;
+             });
         }
 
         // --- AFFICHAGE HTML ---
@@ -1594,9 +1758,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (configPanel) { configPanel.addEventListener('mousedown', dismissWelcomeScreen, { once: true }); configPanel.addEventListener('touchstart', dismissWelcomeScreen, { once: true }); configPanel.addEventListener('change', dismissWelcomeScreen, { once: true }); }
     if (resizer) resizer.addEventListener('mousedown', dismissWelcomeScreen, { once: true });
 
-    // =========================================================
-    // 10. GESTION RESPONSIVE
-    // =========================================================
     function gererPlacementEstimation() {
         const isMobile = window.innerWidth <= 900;
         const techSummary = document.getElementById('tech-summary');

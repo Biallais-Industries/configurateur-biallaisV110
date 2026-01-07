@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configurateur Biallais - v5.15 Textures Reelles</title>
+    <title>Configurateur Biallais - v5.25 (Joint Spécifique)</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="manifest" href="manifest.json">
@@ -50,16 +50,16 @@
                             <div class="custom-option" data-value="jaune"><img src="vignette_jaune.png" onerror="this.style.backgroundColor='#f1c40f'"><span>Jaune</span></div>
                             <div class="custom-option" data-value="saumon"><img src="vignette_saumon.png" onerror="this.style.backgroundColor='#ffab91'"><span>Saumon</span></div>
                             
+                            <div class="custom-option" data-value="rouge"><img src="vignette_rouge.png" onerror="this.style.backgroundColor='#c0392b'"><span>Rouge</span></div>
+
                             <div style="position: relative;">
-                                <div class="category-trigger" id="btn-open-rouges" style="border: 2px solid #e57373; background-color: #ffebee; cursor:pointer; text-align:center; border-radius:8px; padding:5px; height:100px; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                                    <div style="pointer-events: none;">
-                                        <span style="font-size:1.5rem;">🎨</span>
-                                        <span style="font-weight:bold; color:#c62828; font-size:0.8rem; display:block;">Gamme<br>Rouges</span>
-                                    </div>
+                                <div class="custom-option category-trigger" id="btn-open-rouges">
+                                    <img src="vignette_gamme_rouges.png" alt="Palette Rouges" onerror="this.style.display='none'">
+                                    <span>Autres nuances de rouge</span>
                                 </div>
+                                
                                 <div id="sub-palette-rouge" class="pop-in">
                                     <div class="custom-grid-list multi-choice">
-                                        <div class="custom-option" data-value="rouge"><img src="vignette_rouge.png" onerror="this.style.backgroundColor='#c0392b'"><span>Rouge (Std)</span></div>
                                         <div class="custom-option" data-value="terredesienne"><img src="vignette_terredesienne.png" onerror="this.style.backgroundColor='#A0522D'"><span>Terre Sienne</span></div>
                                         <div class="custom-option" data-value="orange"><img src="vignette_orange.png" onerror="this.style.backgroundColor='#E67E22'"><span>Orange</span></div>
                                         <div class="custom-option" data-value="corail"><img src="vignette_corail.png" onerror="this.style.backgroundColor='#FF7F50'"><span>Corail</span></div>
@@ -120,12 +120,15 @@
 
                     <label class="sub-label">Forcer une ligne spécifique <span id="info-max-lines" style="font-weight:normal; color:#666; font-size:0.85rem;"></span> :</label>
                     <div class="rule-builder" style="flex-direction: column; align-items: stretch;">
-                        <div style="display: flex; gap: 5px;">
-                            <input type="text" id="new-line-number" placeholder="N°" class="form-control small-input" style="width: 160px;">
-                            <select id="new-line-finish" class="form-control small-input" style="width: 80px;">
-                                <option value="roc">Roc</option><option value="lisse">Lisse</option>
+                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            <input type="text" id="new-line-number" placeholder="N° Lignes (ex: 1, 5)" class="form-control small-input" style="flex: 1; min-width: 100px;">
+                            
+                            <select id="new-line-finish" class="form-control small-input" style="width: 80px; flex: 0 0 auto;">
+                                <option value="roc">Roc</option>
+                                <option value="lisse">Lisse</option>
                             </select>
-                            <select id="new-line-color" class="form-control small-input" style="flex:1;">
+                            
+                            <select id="new-line-color" class="form-control small-input" style="flex: 2; min-width: 120px;">
                                 <option value="blanc" selected>Blanc</option>
                                 <option value="tonpierre">Ton Pierre</option>
                                 <option value="jaune">Jaune</option>
@@ -146,22 +149,23 @@
                                 <option value="carmin">Carmin</option>
                                 <option value="liedevin">Lie de Vin</option>
                             </select>
+
+                            <select id="new-line-joint" class="form-control small-input" style="width: 110px; flex: 0 0 auto; border-color: #17a2b8;" title="Joint Vertical Uniquement">
+                                <option value="" selected>Joint V. (Auto)</option>
+                                <option value="joint_grisclair.png">Jt Gris Clair</option>
+                                <option value="joint_blanc.png">Jt Blanc</option>
+                                <option value="joint_superblanc.png">Jt S. Blanc</option>
+                                <option value="joint_tonpierre.png">Jt Ton Pierre</option>
+                                <option value="joint_saumon.png">Jt Saumon</option>
+                                <option value="joint_rouge.png">Jt Rouge</option>
+                                <option value="joint_jaune.png">Jt Jaune</option>
+                                <option value="joint_brun.png">Jt Brun</option>
+                                <option value="joint_chocolat.png">Jt Chocolat</option>
+                                <option value="joint_grisfonce.png">Jt Gris F.</option>
+                                <option value="joint_anthracite.png">Jt Anthra.</option>
+                            </select>
                         </div>
                         <div style="display: flex; gap: 5px; margin-top: 5px;">
-                            <select id="new-line-joint" class="form-control small-input" style="width: 130px; flex: none;">
-                                <option value="">Joint (Ligne)</option>
-                                <option value="joint_grisclair.png">Gris Clair</option>
-                                <option value="joint_blanc.png">Blanc</option>
-                                <option value="joint_superblanc.png">Super Blanc</option>
-                                <option value="joint_tonpierre.png">Ton Pierre</option>
-                                <option value="joint_saumon.png">Saumon</option>
-                                <option value="joint_rouge.png">Rouge</option>
-                                <option value="joint_jaune.png">Jaune</option>
-                                <option value="joint_brun.png">Brun</option>
-                                <option value="joint_chocolat.png">Chocolat</option>
-                                <option value="joint_grisfonce.png">Gris Foncé</option>
-                                <option value="joint_anthracite.png">Anthracite</option>
-                            </select>
                             <button id="btn-add-rule" class="btn-mini" style="background-color: #28a745; width: auto; flex: 1; font-weight: bold; font-size: 0.85rem; padding: 0 10px;">VALIDER +</button>
                             <button id="btn-reset-rules" class="btn-mini btn-danger" title="Tout effacer">🗑️</button>
                         </div>
@@ -172,9 +176,9 @@
 
             <div class="config-section">
                 <label class="section-title">4. Couleur et Grain du Joint</label>
-                <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                <div style="display:flex; gap:15px; flex-wrap:wrap; margin-bottom: 15px;">
                     <div style="flex:1; min-width:200px;">
-                        <label class="sub-label" for="select-joint">Couleur :</label>
+                        <label class="sub-label" for="select-joint">Couleur Globale :</label>
                         <select id="select-joint" class="form-control">
                             <option value="joint_grisclair.png">Gris Clair (Standard)</option>
                             <option value="joint_blanc.png">Blanc</option>
@@ -197,6 +201,31 @@
                         </select>
                     </div>
                 </div>
+
+                <div style="border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 10px; background-color: #fcfcfc; padding: 10px; border-radius: 4px;">
+                    <label class="sub-label" style="color: #666;">Forcer une teinte de joint sur une ligne (Sans changer la brique) :</label>
+                    <div class="rule-builder" style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <input type="text" id="joint-rule-row" placeholder="N° ligne(s)" class="form-control small-input" style="flex: 1; min-width: 80px;">
+                        <select id="joint-rule-color" class="form-control small-input" style="flex: 2; min-width: 140px;">
+                            <option value="joint_grisclair.png">Gris Clair</option>
+                            <option value="joint_blanc.png">Blanc</option>
+                            <option value="joint_superblanc.png">Super Blanc</option>
+                            <option value="joint_tonpierre.png">Ton Pierre</option>
+                            <option value="joint_saumon.png">Saumon</option>
+                            <option value="joint_rouge.png">Rouge</option>
+                            <option value="joint_jaune.png">Jaune</option>
+                            <option value="joint_brun.png">Brun</option>
+                            <option value="joint_chocolat.png">Chocolat</option>
+                            <option value="joint_grisfonce.png">Gris Foncé</option>
+                            <option value="joint_anthracite.png">Anthracite</option>
+                        </select>
+                        <button id="btn-add-joint-rule" class="btn-mini" style="background-color: #17a2b8; width: auto; font-weight: bold; font-size: 0.85rem; padding: 0 10px; flex: 0 0 auto;">AJOUTER</button>
+                    </div>
+                    <div id="joint-rules-container" class="tags-container" style="margin-top:5px; min-height: 30px; border: 1px solid #eee;">
+                        <small style="color:#999; font-style:italic;">Aucune règle.</small>
+                    </div>
+                </div>
+
             </div>
 
             <details class="advanced-settings-container">

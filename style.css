@@ -326,12 +326,23 @@ details[open] .advanced-summary::after { content: '-'; }
     /* 4. Outils de règles (Ligne forcée) */
     .rule-builder > div { flex-wrap: wrap !important; gap: 8px !important; }
     .rule-builder input, .rule-builder select, .rule-builder button { width: auto !important; min-width: 0; }
-    #new-line-number { flex: 1 1 40% !important; } 
-    #new-line-finish { flex: 1 1 40% !important; }
-    #new-line-color { flex: 1 1 100% !important; margin-top: 2px; }
-    #new-line-joint { flex: 1 1 100% !important; margin-bottom: 5px; }
+    
+    #new-line-number { flex: 1 1 20% !important; } 
+    #new-line-finish { flex: 1 1 30% !important; }
+    #btn-reset-rules { flex: 0 0 50px !important; }
+
+    /* On force la couleur de brique et la couleur de joint à prendre toute la largeur sur mobile */
+    #new-line-color { 
+        flex: 1 1 100% !important; 
+        margin-top: 2px; 
+    }
+    #new-line-joint { 
+        flex: 1 1 100% !important; 
+        margin-top: 2px;
+        margin-bottom: 5px; 
+    }
+
     #btn-add-rule { flex: 3 1 auto !important; width: auto !important; }
-    #btn-reset-rules { flex: 0 0 50px !important; width: 50px !important; }
 
     /* --- GESTION DU MENU ROUGE SUR MOBILE --- */
     
