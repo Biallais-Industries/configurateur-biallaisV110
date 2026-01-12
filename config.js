@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const APP_VERSION = "v5.28 (CCTP Détaillé Produit par Produit)"; 
+    const APP_VERSION = "v5.29 (Fix Blocage & Validation Ligne)"; 
     const versionDiv = document.getElementById('app-version');
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
@@ -107,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectReliefInFinish = document.getElementById('select-relief-in-finish');
 
     // --- RÈGLES (Bloc 3 : Briques & Joints Verticaux) ---
-    // Note : Cela nécessite que l'input 'new-line-joint' existe dans votre HTML
     const btnAddRule = document.getElementById('btn-add-rule');
     const btnResetRules = document.getElementById('btn-reset-rules');
     const inputRow = document.getElementById('new-line-number');
@@ -227,15 +226,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const productId = getSingleValue(containerProduit);
         const finishes = getMultiValues(containerFinition);
         
-        // --- 1. CONSTRUCTION DE LA LISTE DÉTAILLÉE DES PRODUITS (Coloris + Finition) ---
-        // On se base sur 'lastStatsReal' qui contient les quantités exactes affichées
         let productDetailsText = "";
         
-        // Si le calcul a déjà été fait (ce qui est le cas si on voit un aperçu), on utilise les stats précises
         if (lastStatsReal && Object.keys(lastStatsReal).length > 0) {
             const sortedEntries = Object.entries(lastStatsReal).sort((a,b) => b[1] - a[1]);
             sortedEntries.forEach(([key, count]) => {
-                // key est sous la forme "codeCouleur|finishCode"
                 const parts = key.split('|');
                 const colorCode = parts[0];
                 const finishCode = parts[1];
@@ -247,8 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } 
         else {
-            // Fallback si jamais 'lastStatsReal' est vide (ex: clic immédiat sans générer)
-            // On fait un produit cartésien simple des sélections
             const colors = getMultiValues(containerCouleur);
             colors.forEach(c => {
                 finishes.forEach(f => {
@@ -257,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     productDetailsText += `\n   - ${colorLabel} (${finishLabel})`;
                 });
             });
-            // On ajoute aussi les règles forcées si présentes
             rulesData.forEach(r => {
                  const c = r.color || "Couleur standard";
                  const cLabel = COLOR_LABELS[c] || c;
@@ -266,14 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // --- 2. AGGRÉGATION DES JOINTS (Global + Forcés) ---
         const selectJoint = document.getElementById('select-joint');
         const globalJointTxt = selectJoint.options[selectJoint.selectedIndex].text;
         
         let allJointsSet = new Set();
         allJointsSet.add(globalJointTxt);
 
-        // Fonction pour retrouver le nom lisible d'un joint
         const getJointLabel = (val) => {
              if(!val) return "";
              const opt = selectJoint.querySelector(`option[value="${val}"]`);
@@ -281,14 +271,12 @@ document.addEventListener('DOMContentLoaded', () => {
              return val.replace('joint_', '').replace('.png', '').replace('_', ' '); 
         };
 
-        // Joints des règles Verticales (Bloc 3)
         rulesData.forEach(r => {
             if(r.joint && r.joint !== "") {
                 allJointsSet.add(getJointLabel(r.joint) + " (Ponctuel Vertical)");
             }
         });
 
-        // Joints des règles Horizontales (Bloc 4)
         jointRulesData.forEach(r => {
             if (r.label) {
                 allJointsSet.add(r.label + " (Ponctuel Horizontal)");
@@ -299,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const finalJointString = Array.from(allJointsSet).join(" + ");
         
-        // --- GÉNÉRATION TEXTE ---
         let baseText = "";
         let dimsFab = "";
         let productName = "";
@@ -382,10 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace('{PRODUCT_NAME}', productName)
             .replace('{DIMS_FAB}', dimsFab)
             .replace('{RESISTANCE}', resistanceClass)
-            .replace('{PRODUCT_DETAILS}', productDetailsText) // Insertion de la liste détaillée
+            .replace('{PRODUCT_DETAILS}', productDetailsText)
             .replace('{JOINT_H}', jointH)
             .replace('{JOINT_V}', jointV)
-            .replace('{JOINT_COLOR}', finalJointString) // Insertion de tous les joints
+            .replace('{JOINT_COLOR}', finalJointString)
             .replace('{JOINT_GRAIN}', grainText);
 
         doc.setFontSize(16);
@@ -729,11 +716,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const color = inputColor.value; 
             const joint = inputJoint ? inputJoint.value : ""; 
             
-            // --- RESTRICTION ROC SUR ROUGES ---
+            // --- RESTRICTION ROC SUR ROUGES (CORRECTIF UX) ---
             if (finish === 'roc' && NO_ROC_COLORS.includes(color)) {
-                alert("Aspect indisponible : veuillez vous rapprocher de Biallais Industries.");
-                finish = 'lisse'; 
+                // MODIFICATION : On avertit l'utilisateur, on change la valeur mais on STOPPE l'ajout pour qu'il puisse confirmer.
+                alert("Aspect 'Roc' indisponible pour ce coloris.\nLa finition a été basculée en 'Lisse'.\n\nVeuillez cliquer à nouveau sur VALIDER pour confirmer ce choix.");
                 inputFinish.value = 'lisse';
+                return; // <-- C'est ici que la magie opère : on ne vide pas le champ, on laisse la main à l'utilisateur.
             }
             // ------------------------------------------------------
             
