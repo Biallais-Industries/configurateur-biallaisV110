@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const APP_VERSION = "v5.29 (Fix Blocage & Validation Ligne)"; 
+const APP_VERSION = "v5.30 (Final - Anti Freeze)";
     const versionDiv = document.getElementById('app-version');
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
@@ -704,45 +704,84 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { sliderJointV.min = 1; }
     }
 
-    // --- LOGIQUE BLOC 3 : BRIQUES + JOINTS V ---
+// --- LOGIQUE BLOC 3 : BRIQUES + JOINTS V (Version 5.31 - Custom Popup / Zéro Freeze) ---
     if (btnAddRule) {
         btnAddRule.addEventListener('click', (e) => {
             e.preventDefault();
             const rawText = inputRow.value;
             const rowsToAdd = rawText.split(',').map(str => parseInt(str.trim())).filter(num => !isNaN(num) && num > 0);
-            if (rowsToAdd.length === 0) { alert("Numéro de ligne invalide."); return; }
+            
+            if (rowsToAdd.length === 0) { 
+                // Petit popup non bloquant pour ligne invalide
+                afficherPopupErreur("Veuillez entrer un numéro de ligne valide.");
+                return; 
+            }
             
             let finish = inputFinish.value; 
             const color = inputColor.value; 
             const joint = inputJoint ? inputJoint.value : ""; 
             
-            // --- RESTRICTION ROC SUR ROUGES (CORRECTIF UX) ---
+            // --- DÉTECTION RESTRICTION ROC SUR ROUGES ---
             if (finish === 'roc' && NO_ROC_COLORS.includes(color)) {
-                // MODIFICATION : On avertit l'utilisateur, on change la valeur mais on STOPPE l'ajout pour qu'il puisse confirmer.
-                alert("Aspect 'Roc' indisponible pour ce coloris.\nLa finition a été basculée en 'Lisse'.\n\nVeuillez cliquer à nouveau sur VALIDER pour confirmer ce choix.");
+                
+                // 1. On change la valeur 'en douce'
                 inputFinish.value = 'lisse';
-                return; // <-- C'est ici que la magie opère : on ne vide pas le champ, on laisse la main à l'utilisateur.
+                
+                // 2. AU LIEU DE "alert()", ON AFFICHE NOTRE PROPRE HTML
+                afficherPopupErreur(
+                    "⚠️ <b>Aspect Indisponible</b><br><br>" +
+                    "Ce coloris n'existe pas en finition 'Roc'.<br>" +
+                    "Le système a basculé automatiquement sur <b>'Lisse'</b>.<br><br>" +
+                    "👉 <i>Cliquez à nouveau sur <b>VALIDER</b> pour confirmer.</i>"
+                );
+
+                // 3. On stop tout, l'interface reste fluide
+                return; 
             }
-            // ------------------------------------------------------
             
+            // AJOUT DES RÈGLES
             rowsToAdd.forEach(row => { 
                 rulesData = rulesData.filter(r => r.row !== row); 
                 rulesData.push({ row, finish, color, joint }); 
             });
+            
             rulesData.sort((a, b) => a.row - b.row);
             renderRules(); 
             inputRow.value = ''; 
+            
             triggerAutoUpdate(); 
+            setTimeout(() => inputRow.focus(), 100);
         });
     }
 
-    if (btnResetRules) {
-        btnResetRules.addEventListener('click', (e) => {
-            e.preventDefault();
-            rulesData = [];
-            renderRules();
-            triggerAutoUpdate();
-        });
+    // --- FONCTION UTILITAIRE POUR CRÉER LE POPUP (A ajouter juste après le bloc ci-dessus) ---
+    function afficherPopupErreur(messageHTML) {
+        // Création d'un rideau gris
+        const overlay = document.createElement('div');
+        overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; display:flex; justify-content:center; align-items:center;";
+        
+        // Création de la boite blanche
+        const box = document.createElement('div');
+        box.style.cssText = "background:white; padding:25px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.5); max-width:400px; text-align:center; border-left: 5px solid #c0392b;";
+        
+        // Texte
+        const txt = document.createElement('p');
+        txt.innerHTML = messageHTML;
+        txt.style.cssText = "margin-bottom:20px; font-size:1.1rem; color:#333; line-height:1.5;";
+        
+        // Bouton OK
+        const btn = document.createElement('button');
+        btn.textContent = "J'ai compris";
+        btn.style.cssText = "background:#28a745; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1rem;";
+        
+        // Action fermeture
+        btn.onclick = () => { overlay.remove(); };
+        
+        // Assemblage
+        box.appendChild(txt);
+        box.appendChild(btn);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
     }
 
     // --- LOGIQUE BLOC 4 : JOINTS HORIZONTAUX UNIQUEMENT ---
