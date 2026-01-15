@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-const APP_VERSION = "v5.30 (Final - Anti Freeze)";
+    const APP_VERSION = "v5.32 (Fix Téléchargements JPG/PNG/PDF)"; 
     const versionDiv = document.getElementById('app-version');
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
@@ -64,7 +64,13 @@ const APP_VERSION = "v5.30 (Final - Anti Freeze)";
     // --- ELEMENTS DOM ---
     const bouton = document.getElementById('genererBouton');
     const btnResetConfig = document.getElementById('btnResetConfig'); 
+    
+    // BOUTONS EXPORT
     const btnExportCctp = document.getElementById('btnExportCctp');
+    const btnExportJpg = document.getElementById('btnExportJpg');
+    const btnExportPng = document.getElementById('btnExportPng');
+    const btnExportPdf = document.getElementById('btnExportPdf');
+
     const canvas = document.getElementById('apercuCanvas');
     const loadingOverlay = document.getElementById('loading-overlay');
     
@@ -123,10 +129,6 @@ const APP_VERSION = "v5.30 (Final - Anti Freeze)";
     const jointRulesContainer = document.getElementById('joint-rules-container');
     let jointRulesData = []; 
 
-    // --- EXPORT ---
-    const btnExportJpg = document.getElementById('btnExportJpg');
-    const btnExportPng = document.getElementById('btnExportPng');
-    const btnExportPdf = document.getElementById('btnExportPdf');
     const msgAstuceRoc = document.getElementById('msg-astuce-roc');
     
     // --- SCÈNES ---
@@ -392,8 +394,63 @@ const APP_VERSION = "v5.30 (Final - Anti Freeze)";
         doc.save(`CCTP_Biallais_${productName.replace(/ /g, '_')}.pdf`);
     }
 
+    // --- EXPORT CCTP : EVENT LISTENER ---
     if (btnExportCctp) {
         btnExportCctp.addEventListener('click', generateCCTP);
+    }
+
+    // =========================================================================
+    // 13. FONCTIONS EXPORT JPG / PNG / PDF
+    // =========================================================================
+
+    // A. EXPORT JPG
+    if (btnExportJpg) {
+        btnExportJpg.addEventListener('click', () => {
+            if(!canvas) return;
+            const link = document.createElement('a');
+            link.download = `biallais_config_${Date.now()}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9); // Qualité 0.9 (90%)
+            link.click();
+        });
+    }
+
+    // B. EXPORT PNG
+    if (btnExportPng) {
+        btnExportPng.addEventListener('click', () => {
+            if(!canvas) return;
+            const link = document.createElement('a');
+            link.download = `biallais_config_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
+    // C. EXPORT PDF (IMAGE SEULE)
+    if (btnExportPdf) {
+        btnExportPdf.addEventListener('click', () => {
+            if(!canvas || !window.jspdf) return;
+            
+            const { jsPDF } = window.jspdf;
+            // Création PDF en mode Paysage (Landscape) pour mieux voir le mur
+            const doc = new jsPDF('landscape'); 
+            
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            
+            // Calcul du ratio pour faire tenir l'image
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = pageWidth - 20; // Marges de 10
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            
+            doc.setFontSize(16);
+            doc.text("Aperçu de Configuration Biallais", 10, 15);
+            
+            doc.addImage(imgData, 'JPEG', 10, 20, pdfWidth, pdfHeight);
+            
+            doc.save(`biallais_apercu_${Date.now()}.pdf`);
+        });
     }
 
     const SCENES_CONFIG = {
@@ -704,7 +761,7 @@ const APP_VERSION = "v5.30 (Final - Anti Freeze)";
         } else { sliderJointV.min = 1; }
     }
 
-// --- LOGIQUE BLOC 3 : BRIQUES + JOINTS V (Version 5.31 - Custom Popup / Zéro Freeze) ---
+    // --- LOGIQUE BLOC 3 : BRIQUES + JOINTS V (Version 5.31 - Custom Popup / Zéro Freeze) ---
     if (btnAddRule) {
         btnAddRule.addEventListener('click', (e) => {
             e.preventDefault();
@@ -784,13 +841,25 @@ const APP_VERSION = "v5.30 (Final - Anti Freeze)";
         document.body.appendChild(overlay);
     }
 
+    if (btnResetRules) {
+        btnResetRules.addEventListener('click', (e) => {
+            e.preventDefault();
+            rulesData = [];
+            renderRules();
+            triggerAutoUpdate();
+        });
+    }
+
     // --- LOGIQUE BLOC 4 : JOINTS HORIZONTAUX UNIQUEMENT ---
     if (btnAddJointRule) {
         btnAddJointRule.addEventListener('click', (e) => {
             e.preventDefault();
             const rawText = inputJointRow.value;
             const rowsToAdd = rawText.split(',').map(str => parseInt(str.trim())).filter(num => !isNaN(num) && num > 0);
-            if (rowsToAdd.length === 0) { alert("Numéro de ligne invalide."); return; }
+            if (rowsToAdd.length === 0) { 
+                afficherPopupErreur("Numéro de ligne invalide."); 
+                return; 
+            }
             
             const selectedJointValue = selectJointRuleColor.value; 
             const selectedJointText = selectJointRuleColor.options[selectJointRuleColor.selectedIndex].text;
