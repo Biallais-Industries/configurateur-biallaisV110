@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(versionDiv) versionDiv.textContent = `Biallais Config - ${APP_VERSION}`;
 
     // =======================================================================
-    // 1. CONFIGURATION DES PRIX & LIBELLÉS
+    // 1. CONFIGURATION DES LIBELLÉS
     // =======================================================================
     
     const COLOR_LABELS = {
@@ -31,26 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const COULEURS_SPECIALES = ['superblanc', 'bleu', 'vert']; 
-
-    const PRIX_SAC_MORTIER = {
-        'grisclair': 8.11,
-        'blanc': 8.74,
-        'superblanc': 8.74,
-        'tonpierre': 8.74,
-        'autre': 14.33 
-    };
-
-    const PRIX_BLOC_NU = {
-        'p1': { 'lisse': { 'std': 4.09, 'spec': 7.31 }, 'roc': { 'std': 5.16, 'spec': 8.78 } },
-        'p2': { 'lisse': { 'std': 3.55, 'spec': 6.29 }, 'roc': { 'std': 4.69, 'spec': 7.86 } },
-        'p3': { 'lisse': { 'std': 2.55, 'spec': 4.73 }, 'roc': { 'std': 3.32, 'spec': 5.61 } },
-        'p4': { 'lisse': { 'std': 1.65, 'spec': 2.82 } },
-        'p5': { 'lisse': { 'std': 0.82, 'spec': 1.86 }, 'roc': { 'std': 0.97, 'spec': 2.11 } },
-        'p6': { 'lisse': { 'std': 0.97, 'spec': 1.55 } },
-        'p7': { 'lisse': { 'std': 1.37, 'spec': 2.46 }, 'roc': { 'std': 1.70, 'spec': 2.88 } },
-        'p8': { 'lisse': { 'std': 1.65, 'spec': 3.73 }, 'roc': { 'std': 1.80, 'spec': 4.03 } },
-        'p9': { 'lisse': { 'std': 1.75, 'spec': 2.79 } },
-    };
 
     // --- NETTOYAGE FORCE ---
     const overlayZone = document.getElementById('initial-overlay');
