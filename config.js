@@ -154,6 +154,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
+    // UTILITAIRE D'EXPORT : NOMMAGE DYNAMIQUE (PRODUIT + COULEUR + DIMENSIONS)
+    // =========================================================================
+    function getExportFilename(extension, isCCTP = false) {
+        // 1. Extraction du nom du produit sélectionné
+        let pName = "Produit";
+        const selectedProductOpt = containerProduit.querySelector('.custom-option.selected span');
+        if (selectedProductOpt) {
+            pName = selectedProductOpt.textContent.replace(/\s+/g, '_');
+        }
+
+        // 2. Extraction de la ou des couleurs sélectionnées
+        let colorString = "Esquisse";
+        const selectedColors = getMultiValues(containerCouleur);
+        if (selectedColors.length > 0) {
+            colorString = selectedColors.map(c => (COLOR_LABELS[c] || c).replace(/\s+/g, '_')).join('-');
+        }
+
+        // 3. Récupération des dimensions réelles du calque (en mm)
+        const formatString = `${Math.round(lastWidthMM)}x${Math.round(lastHeightMM)}`;
+
+        // Assemblage final du nom de fichier
+        let baseName = `${pName}_${colorString}_${formatString}`;
+        if (isCCTP) {
+            baseName = `CCTP_${baseName}`; // Ajout du préfixe CCTP si demandé
+        }
+
+        return `${baseName}.${extension}`;
+    }
+
+    // =========================================================================
     // 12. GÉNÉRATEUR DE CCTP
     // =========================================================================
 
@@ -371,7 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const splitText = doc.splitTextToSize(finalCCTP, 170);
         doc.text(splitText, 20, 40);
 
-        doc.save(`CCTP_Biallais_${productName.replace(/ /g, '_')}.pdf`);
+        // Appel de la fonction utilitaire pour le nom de fichier CCTP
+        doc.save(getExportFilename('pdf', true));
     }
 
     // --- EXPORT CCTP : EVENT LISTENER ---
@@ -388,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnExportJpg.addEventListener('click', () => {
             if(!canvas) return;
             const link = document.createElement('a');
-            link.download = `biallais_config_${Date.now()}.jpg`;
+            link.download = getExportFilename('jpg');
             link.href = canvas.toDataURL('image/jpeg', 0.9); // Qualité 0.9 (90%)
             link.click();
         });
@@ -399,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnExportPng.addEventListener('click', () => {
             if(!canvas) return;
             const link = document.createElement('a');
-            link.download = `biallais_config_${Date.now()}.png`;
+            link.download = getExportFilename('png');
             link.href = canvas.toDataURL('image/png');
             link.click();
         });
@@ -429,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             doc.addImage(imgData, 'JPEG', 10, 20, pdfWidth, pdfHeight);
             
-            doc.save(`biallais_apercu_${Date.now()}.pdf`);
+            doc.save(getExportFilename('pdf'));
         });
     }
 
