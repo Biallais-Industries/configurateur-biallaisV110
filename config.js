@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // =========================================================================
-    // UTILITAIRE D'EXPORT : NOMMAGE DYNAMIQUE (PRODUIT + COULEUR + DIMENSIONS)
+    // UTILITAIRE D'EXPORT : NOMMAGE DYNAMIQUE (PRODUIT + COULEUR + JOINT + DIMS)
     // =========================================================================
     function getExportFilename(extension, isCCTP = false) {
         // 1. Extraction du nom du produit sélectionné
@@ -171,13 +171,23 @@ document.addEventListener('DOMContentLoaded', () => {
             colorString = selectedColors.map(c => (COLOR_LABELS[c] || c).replace(/\s+/g, '_')).join('-');
         }
 
-        // 3. Récupération des dimensions réelles du calque (en mm)
+        // 3. Extraction de la couleur du joint
+        let jointString = "Joint_Standard";
+        const selectJointNode = document.getElementById('select-joint');
+        if (selectJointNode && selectJointNode.options.length > 0) {
+            let rawJointText = selectJointNode.options[selectJointNode.selectedIndex].text;
+            // On supprime les mentions type "(Standard)" pour ne garder que la couleur
+            let cleanJointText = rawJointText.replace(/\s*\(.*?\)\s*/g, '').trim();
+            jointString = "Joint_" + cleanJointText.replace(/\s+/g, '_');
+        }
+
+        // 4. Récupération des dimensions réelles du calque (en mm)
         const formatString = `${Math.round(lastWidthMM)}x${Math.round(lastHeightMM)}`;
 
         // Assemblage final du nom de fichier
-        let baseName = `${pName}_${colorString}_${formatString}`;
+        let baseName = `${pName}_${colorString}_${jointString}_${formatString}`;
         if (isCCTP) {
-            baseName = `CCTP_${baseName}`; // Ajout du préfixe CCTP si demandé
+            baseName = `CCTP_${baseName}`; 
         }
 
         return `${baseName}.${extension}`;
@@ -270,15 +280,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        const selectJoint = document.getElementById('select-joint');
-        const globalJointTxt = selectJoint.options[selectJoint.selectedIndex].text;
+        const selectJointNode = document.getElementById('select-joint');
+        const globalJointTxt = selectJointNode.options[selectJointNode.selectedIndex].text;
         
         let allJointsSet = new Set();
         allJointsSet.add(globalJointTxt);
 
         const getJointLabel = (val) => {
              if(!val) return "";
-             const opt = selectJoint.querySelector(`option[value="${val}"]`);
+             const opt = selectJointNode.querySelector(`option[value="${val}"]`);
              if(opt) return opt.text;
              return val.replace('joint_', '').replace('.png', '').replace('_', ' '); 
         };
