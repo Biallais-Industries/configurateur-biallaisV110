@@ -1,6 +1,6 @@
 {
   "name": "Configurateur Biallais",
-  "short_name": "Biallais",
+  "short_name": "Conf Biallais",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
